@@ -8,7 +8,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -20,8 +22,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "To scan papers and barcodes for devices.",
         "NSPhotoLibraryUsageDescription": "To attach a photo of a device.",
-        "NSMicrophoneUsageDescription": "To speak to the assistant and dictate the problem.",
-        "NSSpeechRecognitionUsageDescription": "To turn your voice into text.",
+        "NSMicrophoneUsageDescription": "Allow S-IT Hub to hear you.",
+        "NSSpeechRecognitionUsageDescription": "Allow S-IT Hub to turn your voice into text.",
         "NSDocumentsFolderUsageDescription": "To save and share PDF papers."
       }
     },
@@ -33,12 +35,12 @@
         "backgroundColor": "#0B3C74"
       },
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "POST_NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM",
-        "READ_MEDIA_IMAGES"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "plugins": [
@@ -47,7 +49,9 @@
       "expo-document-picker",
       [
         "expo-image-picker",
-        { "photosPermission": "Allow S-IT Hub to attach a photo to a device." }
+        {
+          "photosPermission": "Allow S-IT Hub to attach a photo to a device."
+        }
       ],
       [
         "expo-notifications",
@@ -89,15 +93,25 @@
       [
         "expo-build-properties",
         {
-          "android": { "minSdkVersion": 26, "enableProguardInReleaseBuilds": true },
-          "ios": { "deploymentTarget": "16.4" }
+          "android": {
+            "minSdkVersion": 26,
+            "enableProguardInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": true
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
         }
       ]
     ],
     "extra": {
       "supabaseUrl": "",
       "supabaseAnonKey": "",
-      "aiFunctionName": "assistant"
-    }
+      "aiFunctionName": "assistant",
+      "eas": {
+        "projectId": "72cc7216-811b-46bd-b241-148191548592"
+      }
+    },
+    "owner": "bhk0_1"
   }
 }
