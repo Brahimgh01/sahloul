@@ -1,0 +1,103 @@
+{
+  "expo": {
+    "name": "S-IT Hub",
+    "slug": "sit-hub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "sithub",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": ["**/*"],
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B3C74"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "tn.sithub.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "To scan papers and barcodes for devices.",
+        "NSPhotoLibraryUsageDescription": "To attach a photo of a device.",
+        "NSMicrophoneUsageDescription": "To speak to the assistant and dictate the problem.",
+        "NSSpeechRecognitionUsageDescription": "To turn your voice into text.",
+        "NSDocumentsFolderUsageDescription": "To save and share PDF papers."
+      }
+    },
+    "android": {
+      "package": "tn.sithub.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B3C74"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-localization",
+      "expo-document-picker",
+      [
+        "expo-image-picker",
+        { "photosPermission": "Allow S-IT Hub to attach a photo to a device." }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0B3C74",
+          "sounds": [
+            "./assets/sounds/device_late.wav",
+            "./assets/sounds/critical_waiting.wav",
+            "./assets/sounds/due_tomorrow.wav",
+            "./assets/sounds/contract_ending.wav",
+            "./assets/sounds/done.wav",
+            "./assets/sounds/morning.wav",
+            "./assets/sounds/sync_problem.wav",
+            "./assets/sounds/success.wav",
+            "./assets/sounds/error.wav",
+            "./assets/sounds/voice_fr_device_late.wav",
+            "./assets/sounds/voice_fr_critical.wav",
+            "./assets/sounds/voice_ar_device_late.wav",
+            "./assets/sounds/voice_ar_critical.wav",
+            "./assets/sounds/voice_en_device_late.wav",
+            "./assets/sounds/voice_en_critical.wav"
+          ]
+        }
+      ],
+      [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Allow S-IT Hub to scan papers with the camera."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow S-IT Hub to hear you.",
+          "speechRecognitionPermission": "Allow S-IT Hub to turn your voice into text."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": { "minSdkVersion": 26, "enableProguardInReleaseBuilds": true },
+          "ios": { "deploymentTarget": "16.4" }
+        }
+      ]
+    ],
+    "extra": {
+      "supabaseUrl": "",
+      "supabaseAnonKey": "",
+      "aiFunctionName": "assistant"
+    }
+  }
+}
