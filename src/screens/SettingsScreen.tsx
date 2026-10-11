@@ -1,11 +1,28 @@
 // Settings: language, look, sounds, alerts, sync, security, data (spec section 8).
+// Redesign: grouped cards (GroupHeading + Group), segmented pickers and ribbon rows.
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 
+import { Entry } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { AppText, Button, Card, Chip, Divider, Icon, type IconName, Row, Spacer } from '@/components/ui';
+import {
+  AppText,
+  Chip,
+  Divider,
+  Group,
+  GroupHeading,
+  Icon,
+  IconButton,
+  KV,
+  Row,
+  RowButton,
+  Segmented,
+  Spacer,
+  Switch,
+  type IconName,
+} from '@/components/ui';
 import { loadDemoData, resetDemoData } from '@/data/demo';
 import { useT } from '@/i18n';
 import { formatDate } from '@/lib/dates';
@@ -13,12 +30,13 @@ import type { RootStackParamList } from '@/navigation/types';
 import { success } from '@/services/feedback';
 import { testSound } from '@/services/notifications';
 import { storageUsed } from '@/services/papers';
-import { getLastSync } from '@/services/sync';
-import { useSettings, type AlertKind } from '@/store/settings';
+import { getLastSync, syncNow } from '@/services/sync';
+import { toast } from '@/store/feedback';
+import { useSettings, type AlertKind, type ThemeMode } from '@/store/settings';
 import { useWork } from '@/store/work';
 import { useTheme } from '@/theme/ThemeProvider';
+import { gradients, type TextScaleName } from '@/theme/tokens';
 import type { Language } from '@/types';
-import type { TextScaleName } from '@/theme/tokens';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -26,6 +44,8 @@ const LANGS: Language[] = ['fr', 'ar', 'en'];
 const LANG_LABELS: Record<Language, string> = { fr: 'Français', ar: 'العربية', en: 'English' };
 const TEXT_SIZES: TextScaleName[] = ['normal', 'large', 'xlarge'];
 const TEXT_SIZE_KEYS: Record<TextScaleName, string> = { normal: 'settings.textNormal', large: 'settings.textLarge', xlarge: 'settings.textXLarge' };
+const THEME_MODES: ThemeMode[] = ['light', 'dark', 'system'];
+const THEME_KEYS: Record<ThemeMode, string> = { system: 'settings.themeSystem', light: 'settings.themeLight', dark: 'settings.themeDark' };
 const ALERT_KINDS: AlertKind[] = ['device_late', 'critical_waiting', 'due_tomorrow', 'contract_ending', 'done', 'morning', 'sync_problem'];
 const ALERT_LABELS: Record<AlertKind, string> = {
   device_late: 'today.late',
@@ -69,6 +89,30 @@ export function SettingsScreen() {
 
   const onToggle = (key: keyof typeof settings, value: boolean) => set({ [key]: value } as never);
 
+  const onLang = (l: Language) => {
+    set({ language: l });
+    toast(t('toast.lang', { name: LANG_LABELS[l] }));
+  };
+
+  const onThemeMode = (m: ThemeMode) => {
+    set({ themeMode: m });
+    toast(t('toast.theme'));
+  };
+
+  const doSync = async () => {
+    const r = await syncNow();
+    setLastSync(await getLastSync());
+    if (r.skipped) toast(t('sync.offline'), { icon: 'cloud-outline' });
+    else toast(t('toast.synced'), { tone: r.failed ? 'warn' : 'success', icon: 'cloud-check-outline' });
+  };
+
+  const onLoadDemo = async () => {
+    await loadDemoData();
+    await refresh();
+    success();
+    toast(t('demo.loaded'), { tone: 'success', icon: 'database-plus-outline' });
+  };
+
   const resetDemo = () =>
     Alert.alert(t('settings.resetDemo'), t('settings.demoData'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -80,6 +124,7 @@ export function SettingsScreen() {
           await loadDemoData();
           await refresh();
           success();
+          toast(t('demo.reset'), { icon: 'delete-sweep-outline' });
         },
       },
     ]);
@@ -88,187 +133,212 @@ export function SettingsScreen() {
     <Screen edges={[]}>
       <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 160 }}>
         {/* Language */}
-        <Section title={t('settings.language')}>
-          <View style={styles.chips}>
-            {LANGS.map((l) => (
-              <Chip key={l} label={LANG_LABELS[l]} selected={settings.language === l} onPress={() => set({ language: l })} />
-            ))}
-          </View>
-        </Section>
+        <Entry>
+          <GroupHeading>{t('settings.language')}</GroupHeading>
+          <Segmented
+            options={LANGS.map((l) => ({ value: l, label: LANG_LABELS[l] }))}
+            value={settings.language}
+            onChange={onLang}
+          />
+        </Entry>
 
         {/* Appearance */}
-        <Section title={t('settings.appearance')}>
-          <Row style={{ justifyContent: 'space-between', paddingVertical: 8 }}>
-            <AppText size="body">{t('settings.textSize')}</AppText>
-          </Row>
-          <View style={styles.chips}>
-            {TEXT_SIZES.map((s) => (
-              <Chip key={s} label={t(TEXT_SIZE_KEYS[s])} selected={settings.textScale === s} onPress={() => set({ textScale: s })} />
-            ))}
-          </View>
-          <Spacer size="md" />
-          <AppText size="body">{t('settings.darkMode')}</AppText>
-          <Spacer size="sm" />
-          <View style={styles.chips}>
-            <Chip label={t('settings.themeSystem')} selected={settings.themeMode === 'system'} onPress={() => set({ themeMode: 'system' })} />
-            <Chip label={t('settings.themeLight')} selected={settings.themeMode === 'light'} onPress={() => set({ themeMode: 'light' })} />
-            <Chip label={t('settings.themeDark')} selected={settings.themeMode === 'dark'} onPress={() => set({ themeMode: 'dark' })} />
-          </View>
-          <Spacer size="md" />
-          <SwitchRow icon="motion-pause-outline" label={t('settings.reduceMotion')} value={settings.reduceMotion} onChange={(v) => onToggle('reduceMotion', v)} />
-          <SwitchRow icon="contrast-circle" label={t('settings.highContrast')} value={settings.highContrast} onChange={(v) => onToggle('highContrast', v)} />
-        </Section>
+        <Entry delay={60}>
+          <GroupHeading>{t('settings.appearance')}</GroupHeading>
+          <Group>
+            <BlockRow icon="theme-light-dark" title={t('settings.darkMode')}>
+              <Segmented
+                options={THEME_MODES.map((m) => ({ value: m, label: t(THEME_KEYS[m]) }))}
+                value={settings.themeMode}
+                onChange={onThemeMode}
+              />
+            </BlockRow>
+            <Divider />
+            <BlockRow icon="format-size" title={t('settings.textSize')}>
+              <Segmented
+                options={TEXT_SIZES.map((s) => ({ value: s, label: t(TEXT_SIZE_KEYS[s]) }))}
+                value={settings.textScale}
+                onChange={(s) => set({ textScale: s })}
+              />
+            </BlockRow>
+            <Divider />
+            <SetRow
+              icon="motion-pause-outline"
+              title={t('settings.reduceMotion')}
+              right={<Switch value={settings.reduceMotion} onChange={(v) => onToggle('reduceMotion', v)} />}
+            />
+            <Divider />
+            <SetRow
+              icon="contrast-circle"
+              title={t('settings.highContrast')}
+              right={<Switch value={settings.highContrast} onChange={(v) => onToggle('highContrast', v)} />}
+            />
+          </Group>
+        </Entry>
 
         {/* Sounds and voices */}
-        <Section title={t('settings.soundsVoices')}>
-          <SwitchRow icon="volume-high" label={t('settings.sounds')} value={settings.soundsEnabled} onChange={(v) => onToggle('soundsEnabled', v)} />
-          <SwitchRow icon="vibrate" label={t('settings.haptics')} value={settings.hapticsEnabled} onChange={(v) => onToggle('hapticsEnabled', v)} />
-          <SwitchRow icon="microphone-outline" label={t('settings.assistantOn')} value={settings.assistantEnabled} onChange={(v) => onToggle('assistantEnabled', v)} />
-          <SwitchRow icon="robot-outline" label={t('settings.aiOn')} value={settings.aiEnabled} onChange={(v) => onToggle('aiEnabled', v)} />
-        </Section>
+        <Entry delay={120}>
+          <GroupHeading>{t('settings.soundsVoices')}</GroupHeading>
+          <Group>
+            <SetRow icon="volume-high" title={t('settings.sounds')} right={<Switch value={settings.soundsEnabled} onChange={(v) => onToggle('soundsEnabled', v)} />} />
+            <Divider />
+            <SetRow icon="vibrate" title={t('settings.haptics')} right={<Switch value={settings.hapticsEnabled} onChange={(v) => onToggle('hapticsEnabled', v)} />} />
+            <Divider />
+            <SetRow icon="microphone-outline" title={t('settings.assistantOn')} right={<Switch value={settings.assistantEnabled} onChange={(v) => onToggle('assistantEnabled', v)} />} />
+            <Divider />
+            <SetRow icon="cloud-upload-outline" title={t('settings.cloudOn')} right={<Switch value={settings.cloudSyncEnabled} onChange={(v) => onToggle('cloudSyncEnabled', v)} />} />
+            <Divider />
+            <SetRow icon="robot-outline" title={t('settings.aiOn')} right={<Switch value={settings.aiEnabled} onChange={(v) => onToggle('aiEnabled', v)} />} />
+          </Group>
+        </Entry>
 
         {/* Alerts */}
-        <Section title={t('settings.alerts')}>
-          {ALERT_KINDS.map((k) => (
-            <View key={k} style={[styles.alertRow, { borderTopColor: theme.colors.border }]}>
-              <Icon name={ALERT_ICONS[k]} size={22} color={theme.colors.textMuted} />
-              <AppText size="body" style={{ flex: 1 }}>
-                {t(ALERT_LABELS[k])}
-              </AppText>
-              <Switch
-                value={settings.alerts[k].enabled}
-                onValueChange={(v) => setAlert(k, { enabled: v })}
-                trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
-                thumbColor={theme.colors.card}
-              />
-              <Button title={t('settings.testSound')} variant="ghost" onPress={() => testSound(k)} style={{ minWidth: 0 }} />
-            </View>
-          ))}
+        <Entry delay={180}>
+          <GroupHeading>{t('settings.alerts')}</GroupHeading>
+          <Group>
+            {ALERT_KINDS.map((k, i) => (
+              <React.Fragment key={k}>
+                {i > 0 ? <Divider /> : null}
+                <Row style={{ gap: 10, paddingVertical: 8, minHeight: 56 }}>
+                  <Icon name={ALERT_ICONS[k]} size={22} color={theme.colors.textMuted} />
+                  <AppText size="body" numberOfLines={1} style={{ flex: 1 }}>
+                    {t(ALERT_LABELS[k])}
+                  </AppText>
+                  <IconButton name="play-circle-outline" label={t('settings.testSound')} variant="soft" size={22} onPress={() => testSound(k)} />
+                  <Switch value={settings.alerts[k].enabled} onChange={(v) => setAlert(k, { enabled: v })} />
+                </Row>
+              </React.Fragment>
+            ))}
+          </Group>
           <Spacer size="sm" />
           <AppText size="tiny" muted>
             {t('settings.dndHint')}
           </AppText>
-        </Section>
+        </Entry>
 
-        {/* Sync */}
-        <Section title={t('settings.sync')}>
-          <Row style={{ justifyContent: 'space-between', paddingVertical: 8 }}>
-            <AppText size="body">{t('settings.cloudOn')}</AppText>
-            <Switch
-              value={settings.cloudSyncEnabled}
-              onValueChange={(v) => onToggle('cloudSyncEnabled', v)}
-              trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
-              thumbColor={theme.colors.card}
+        {/* Data and sync */}
+        <Entry delay={240}>
+          <GroupHeading>{t('settings.sync')}</GroupHeading>
+          <Group>
+            <SetRow icon="wifi" title={t('settings.wifiOnly')} right={<Switch value={settings.wifiOnlyUploads} onChange={(v) => onToggle('wifiOnlyUploads', v)} />} />
+            <Divider />
+            <RowButton
+              icon="cloud-sync-outline"
+              iconColors={gradients.calm}
+              title={t('settings.sync')}
+              subtitle={`${t('settings.lastSync')}: ${lastSync ? formatDate(lastSync) : t('settings.never')}`}
+              onPress={doSync}
             />
-          </Row>
-          <SwitchRow icon="wifi" label={t('settings.wifiOnly')} value={settings.wifiOnlyUploads} onChange={(v) => onToggle('wifiOnlyUploads', v)} />
-          <Divider />
-          <InfoRow label={t('settings.lastSync')} value={lastSync ? formatDate(lastSync) : t('settings.never')} />
-          <Divider />
-          <InfoRow label={t('settings.storageUsed')} value={storage} />
+            <Divider />
+            <RowButton icon="database-plus-outline" iconColors={gradients.gold} title={t('settings.loadDemo')} subtitle={t('settings.demoData')} onPress={onLoadDemo} />
+            <Divider />
+            <RowButton icon="tray-arrow-down" iconColors={gradients.brand} title={t('settings.importCsv')} subtitle={t('devices.import')} onPress={() => nav.navigate('ImportCsv')} />
+            <Divider />
+            <RowButton icon="delete-sweep-outline" iconColors={gradients.ember} title={t('settings.resetDemo')} subtitle={t('settings.demoData')} onPress={resetDemo} />
+            <Divider />
+            <RowButton icon="shield-check-outline" iconColors={gradients.fresh} title={t('settings.about')} subtitle={t('about.madeBy')} onPress={() => nav.navigate('About')} />
+          </Group>
+
+          <Group style={{ marginTop: theme.spacing.md }}>
+            <KV label={t('settings.lastSync')} value={lastSync ? formatDate(lastSync) : t('settings.never')} />
+            <KV label={t('settings.storageUsed')} value={storage} />
+          </Group>
           <Spacer size="sm" />
           <AppText size="tiny" muted>
             {t('sync.pending', { count: waiting })}
           </AppText>
-        </Section>
+        </Entry>
 
         {/* Security */}
-        <Section title={t('settings.security')}>
-          <SwitchRow icon="fingerprint" label={t('settings.pin')} value={settings.pinEnabled} onChange={(v) => onToggle('pinEnabled', v)} />
-          <AppText size="body" style={{ marginTop: 4 }}>
-            {t('settings.autoLock')}
-          </AppText>
-          <Spacer size="sm" />
-          <View style={styles.chips}>
-            {AUTO_LOCK.map((m) => (
-              <Chip
-                key={m}
-                label={m === 0 ? t('settings.never') : t('settings.minutes', { count: m })}
-                selected={settings.autoLockMinutes === m}
-                onPress={() => set({ autoLockMinutes: m })}
-              />
-            ))}
-          </View>
-        </Section>
-
-        {/* Users */}
-        <Section title={t('settings.users')}>
-          <Row style={{ gap: 10, paddingVertical: 8 }}>
-            <Icon name="shield-account-outline" size={24} color={theme.colors.primary} />
-            <View style={{ flex: 1 }}>
-              <AppText size="body" weight="600">
-                {t('auth.admin')}
-              </AppText>
-              <AppText size="small" muted>
-                {t('common.version')} 2
-              </AppText>
+        <Entry delay={300}>
+          <GroupHeading>{t('settings.security')}</GroupHeading>
+          <Group>
+            <SetRow icon="fingerprint" title={t('settings.pin')} right={<Switch value={settings.pinEnabled} onChange={(v) => onToggle('pinEnabled', v)} />} />
+            <Divider />
+            <View style={{ paddingVertical: 10 }}>
+              <AppText size="body">{t('settings.autoLock')}</AppText>
+              <Spacer size="sm" />
+              <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+                {AUTO_LOCK.map((m) => (
+                  <Chip
+                    key={m}
+                    label={m === 0 ? t('settings.never') : t('settings.minutes', { count: m })}
+                    selected={settings.autoLockMinutes === m}
+                    onPress={() => set({ autoLockMinutes: m })}
+                  />
+                ))}
+              </Row>
             </View>
-          </Row>
-        </Section>
+          </Group>
+        </Entry>
 
-        {/* Data */}
-        <Section title={t('settings.demoData')}>
-          <Button title={t('settings.importCsv')} icon="tray-arrow-down" variant="secondary" onPress={() => nav.navigate('ImportCsv')} />
-          <Spacer size="sm" />
-          <Button
-            title={t('settings.loadDemo')}
-            icon="database-plus-outline"
-            variant="secondary"
-            onPress={async () => {
-              await loadDemoData();
-              await refresh();
-              success();
-            }}
-          />
-          <Spacer size="sm" />
-          <Button title={t('settings.resetDemo')} icon="delete-sweep-outline" variant="danger" onPress={resetDemo} />
-        </Section>
-
-        <Spacer size="md" />
-        <Button title={t('settings.about')} icon="information-outline" variant="ghost" onPress={() => nav.navigate('About')} />
+        {/* Users and roles */}
+        <Entry delay={360}>
+          <GroupHeading>{t('settings.users')}</GroupHeading>
+          <Group>
+            <Row style={{ gap: 12, paddingVertical: 12, minHeight: 56 }}>
+              <IconTile name="shield-account-outline" />
+              <View style={{ flex: 1 }}>
+                <AppText size="body" weight="600">
+                  {t('auth.admin')}
+                </AppText>
+                <AppText size="small" muted>
+                  {t('common.version')} 2
+                </AppText>
+              </View>
+            </Row>
+          </Group>
+        </Entry>
       </ScrollView>
     </Screen>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+/** A small tinted square holding a row icon. */
+function IconTile({ name }: { name: IconName }) {
+  const theme = useTheme();
   return (
-    <View style={{ marginBottom: 20 }}>
-      <AppText size="section" weight="700" style={{ marginBottom: 8 }}>
-        {title}
-      </AppText>
-      <Card>{children}</Card>
+    <View
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        backgroundColor: theme.colors.surface2,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Icon name={name} size={20} color={theme.colors.brand} />
     </View>
   );
 }
 
-function SwitchRow({ icon, label, value, onChange }: { icon: IconName; label: string; value: boolean; onChange: (v: boolean) => void }) {
+/** One settings row: tinted icon + label + a trailing control. */
+function SetRow({ icon, title, right }: { icon: IconName; title: string; right: React.ReactNode }) {
   const theme = useTheme();
   return (
-    <Row style={{ justifyContent: 'space-between', paddingVertical: 8 }}>
-      <Row style={{ gap: 10, flex: 1 }}>
-        <Icon name={icon} size={22} color={theme.colors.textMuted} />
-        <AppText size="body">{label}</AppText>
-      </Row>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.colors.primary, false: theme.colors.border }} thumbColor={theme.colors.card} />
+    <Row style={{ gap: 12, paddingVertical: 8, minHeight: theme.HIT + 8 }}>
+      <IconTile name={icon} />
+      <AppText size="body" numberOfLines={1} style={{ flex: 1 }}>
+        {title}
+      </AppText>
+      {right}
     </Row>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+/** A settings block: title row on top, a full-width control underneath. */
+function BlockRow({ icon, title, children }: { icon: IconName; title: string; children: React.ReactNode }) {
   return (
-    <Row style={{ justifyContent: 'space-between', paddingVertical: 8 }}>
-      <AppText size="small" muted>
-        {label}
-      </AppText>
-      <AppText size="body" weight="600">
-        {value}
-      </AppText>
-    </Row>
+    <View style={{ paddingVertical: 10 }}>
+      <Row style={{ gap: 12 }}>
+        <IconTile name={icon} />
+        <AppText size="body" style={{ flex: 1 }}>
+          {title}
+        </AppText>
+      </Row>
+      <Spacer size="sm" />
+      {children}
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  alertRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
-});

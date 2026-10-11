@@ -1,22 +1,25 @@
-// One paper: what it is, where it is stored, the text we read, and actions (spec 5.4).
+// One paper: the paper itself, the text we read, and actions (spec 5.4).
+// Visual layer only - scanning/sharing/printing/deleting are unchanged.
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Image, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
+import { Entry } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { Tag } from '@/components/StatusChip';
-import { AppText, Badge, Button, Card, Divider, Icon, Row, Spacer } from '@/components/ui';
+import { AppText, Button, Card, Chip, Display, Group, Icon, KV, Row, Spacer, Tag } from '@/components/ui';
 import type { PaperWithRefs } from '@/data/queries';
 import { first, softDelete, undelete, updateRow } from '@/db/repo';
-import { useDirection, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import { formatDate } from '@/lib/dates';
 import { formatTND } from '@/lib/money';
 import { PAPER_TYPE_META } from '@/lib/status';
 import type { RootStackParamList } from '@/navigation/types';
 import { success } from '@/services/feedback';
 import { exists, printFile, shareFile } from '@/services/papers';
+import { toast } from '@/store/feedback';
 import { useWork } from '@/store/work';
+import type { Palette } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { PaperType } from '@/types';
 
@@ -25,17 +28,23 @@ type Rt = RouteProp<RootStackParamList, 'PaperViewer'>;
 
 const PAPER_TYPES: PaperType[] = ['invoice', 'contract', 'quote', 'dispatch_note', 'reception_sheet', 'warranty', 'other'];
 
+const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+
+function typeColor(colors: Palette, type: PaperType): string {
+  if (type === 'invoice') return colors.info;
+  if (type === 'contract') return colors.brand;
+  return colors.textMuted;
+}
+
 export function PaperViewerScreen() {
   const theme = useTheme();
   const { t } = useT();
-  const dir = useDirection();
   const nav = useNavigation<Nav>();
   const { params } = useRoute<Rt>();
   const refresh = useWork((s) => s.refresh);
 
   const [paper, setPaper] = useState<PaperWithRefs | null>(null);
   const [editing, setEditing] = useState(false);
-  const [deleted, setDeleted] = useState(false);
 
   const load = async () => {
     const row = await first<PaperWithRefs>(
@@ -65,6 +74,7 @@ export function PaperViewerScreen() {
   }
 
   const meta = PAPER_TYPE_META[paper.type as PaperType] ?? PAPER_TYPE_META.other;
+  const color = typeColor(theme.colors, paper.type as PaperType);
   const isImage = /\.(png|jpe?g|webp)$/i.test(paper.phone_file_path ?? '');
 
   const share = async () => {
@@ -90,19 +100,23 @@ export function PaperViewerScreen() {
     }
   };
 
-  const remove = async () => {
-    await softDelete('papers', paper.id);
-    await refresh();
-    setDeleted(true);
-    setTimeout(() => setDeleted((d) => d), 10000);
-  };
-
   const undo = async () => {
     await undelete('papers', paper.id);
     await refresh();
-    setDeleted(false);
     success();
     nav.goBack();
+  };
+
+  const remove = async () => {
+    await softDelete('papers', paper.id);
+    await refresh();
+    toast(t('toast.deleted'), {
+      tone: 'danger',
+      icon: 'trash-can-outline',
+      undoLabel: t('common.undo'),
+      durationMs: 10000,
+      onUndo: undo,
+    });
   };
 
   const setType = async (p: PaperType) => {
@@ -116,167 +130,131 @@ export function PaperViewerScreen() {
   return (
     <Screen edges={[]}>
       <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 160 }}>
-        <Card>
-          <Row style={{ gap: 12 }}>
-            <View style={[styles.iconBox, { backgroundColor: theme.colors.primarySoft }]}>
-              <Icon name={meta.icon} size={28} color={theme.colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText size="section" weight="700">
-                {t(meta.i18nKey)}
-              </AppText>
-              <AppText size="small" muted numberOfLines={2}>
-                {paper.file_name}
-              </AppText>
-            </View>
-          </Row>
-          <Spacer size="md" />
-          <Row style={{ gap: 8, flexWrap: 'wrap' }}>
-            <Badge label={t('papers.badgeOnPhone')} color={theme.colors.info} icon="cellphone" />
-            {paper.upload_status === 'backed_up' ? <Badge label={t('papers.badgeBackedUp')} color={theme.colors.done} icon="cloud-check" /> : null}
-            {paper.words_status === 'not_read' ? <Badge label={t('papers.badgeWordsNotRead')} color={theme.colors.due} icon="text-recognition" /> : null}
-            <Tag label={t('papers.page', { n: paper.pages })} icon="file-multiple-outline" color={theme.colors.textMuted} />
-          </Row>
-        </Card>
-
-        {/* Preview */}
-        <Spacer size="lg" />
-        {isImage ? (
-          <Card>
-            <Image source={{ uri: paper.phone_file_path }} style={styles.preview} resizeMode="contain" />
-          </Card>
-        ) : (
-          <Card>
-            <Row style={{ gap: 10 }}>
-              <Icon name="file-pdf-box" size={30} color={theme.colors.late} />
-              <View style={{ flex: 1 }}>
-                <AppText size="body" weight="600">
-                  PDF
+        {/* The document itself, on a white "paper" card. */}
+        <Entry>
+          <Card style={[styles.paper, { borderColor: 'rgba(15,23,42,0.08)' }]}>
+            <Row style={{ gap: 12 }}>
+              <View style={[styles.iconBox, { backgroundColor: color + '22' }]}>
+                <Icon name={meta.icon} size={22} color={color} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText size="body" weight="700" color="#0F172A" numberOfLines={1}>
+                  {t(meta.i18nKey)}
                 </AppText>
-                <AppText size="small" muted>
+                <AppText size="small" color="#54627A" numberOfLines={2}>
                   {paper.file_name}
                 </AppText>
               </View>
+              {paper.amount != null ? <Tag label={formatTND(paper.amount)} tone="info" icon="cash" /> : null}
             </Row>
+
+            <View style={styles.paperLine} />
+            <AppText size="small" color="#334155" style={[styles.paperText, { fontFamily: MONO }]}>
+              {paper.text || t('scan.wordsNotRead')}
+            </AppText>
           </Card>
-        )}
+        </Entry>
+
+        {/* Storage + reading badges */}
+        <Row style={{ gap: 6, flexWrap: 'wrap', marginTop: theme.spacing.md }}>
+          {paper.upload_status === 'backed_up' ? (
+            <Tag label={t('papers.badgeBackedUp')} tone="ok" icon="cloud-check" />
+          ) : (
+            <Tag label={t('papers.badgeOnPhone')} tone="warn" icon="cellphone" />
+          )}
+          {paper.words_status === 'not_read' ? <Tag label={t('papers.badgeWordsNotRead')} icon="text-recognition" /> : null}
+          <Tag label={t('papers.page', { n: paper.pages })} icon="file-multiple-outline" />
+        </Row>
+
+        {/* Preview (image or PDF) */}
+        <Entry delay={70}>
+          <Spacer size="lg" />
+          {isImage ? (
+            <Card>
+              <Image source={{ uri: paper.phone_file_path }} style={styles.preview} resizeMode="contain" />
+            </Card>
+          ) : (
+            <Card>
+              <Row style={{ gap: 10 }}>
+                <Icon name="file-pdf-box" size={30} color={theme.colors.late} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <AppText size="body" weight="700">
+                    PDF
+                  </AppText>
+                  <AppText size="small" muted numberOfLines={1}>
+                    {paper.file_name}
+                  </AppText>
+                </View>
+              </Row>
+            </Card>
+          )}
+        </Entry>
 
         {/* Ref + details */}
-        <Spacer size="lg" />
-        <Card>
-          <Detail label={t('scan.company')} value={paper.company_name ?? '—'} />
-          <Divider />
-          <Detail label={t('scan.device')} value={paper.device_label ?? '—'} />
-          <Divider />
-          <Detail label={t('scan.date')} value={formatDate(paper.paper_date ?? paper.created_at)} />
-          <Divider />
-          <Detail label={t('scan.amount')} value={formatTND(paper.amount)} />
-        </Card>
+        <Entry delay={120}>
+          <Spacer size="lg" />
+          <Group>
+            <KV label={t('scan.type')} value={t(meta.i18nKey)} />
+            <KV label={t('scan.date')} value={formatDate(paper.paper_date ?? paper.created_at)} />
+            <KV label={t('scan.company')} value={paper.company_name ?? '—'} />
+            <KV label={t('scan.device')} value={paper.device_label ?? '—'} />
+            <KV label={t('scan.amount')} value={formatTND(paper.amount)} />
+          </Group>
+        </Entry>
 
-        {/* Text we read */}
-        {paper.text ? (
-          <>
-            <Spacer size="lg" />
-            <AppText size="section" weight="700">
-              {t('scan.suggested')}
-            </AppText>
-            <Spacer size="sm" />
-            <Card>
-              <AppText size="small" style={{ lineHeight: 22 }}>
-                {paper.text}
-              </AppText>
-            </Card>
-          </>
-        ) : null}
-
-        <Spacer size="xl" />
-        <Button title={t('common.share')} icon="share-variant" variant="secondary" onPress={share} />
-        <Spacer size="sm" />
-        <Button title={t('common.print')} icon="printer-outline" variant="secondary" onPress={print} />
-        <Spacer size="sm" />
-        <Button title={t('device.edit')} icon="pencil-outline" variant="secondary" onPress={() => setEditing(true)} />
-        <Spacer size="sm" />
-        <Button title={t('common.delete')} icon="trash-can-outline" variant="danger" onPress={remove} />
+        {/* Actions */}
+        <Entry delay={170}>
+          <Spacer size="lg" />
+          <Row style={{ gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button title={t('common.share')} icon="share-variant" variant="outline" onPress={share} block />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title={t('common.print')} icon="printer-outline" variant="outline" onPress={print} block />
+            </View>
+          </Row>
+          <Spacer size="sm" />
+          <Button title={t('device.edit')} icon="pencil-outline" variant="brandSoft" onPress={() => setEditing(true)} block />
+          <Spacer size="sm" />
+          <Button title={t('common.delete')} icon="trash-can-outline" variant="danger" onPress={remove} block />
+        </Entry>
       </ScrollView>
 
       {/* Edit type */}
       <Modal visible={editing} transparent animationType="fade" onRequestClose={() => setEditing(false)}>
         <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={() => setEditing(false)}>
-          <View style={[styles.sheet, { backgroundColor: theme.colors.card }]}>
-            <AppText size="section" weight="700">
+          <View style={[styles.sheet, { backgroundColor: theme.colors.surface }]}>
+            <Display size="lg" weight="700">
               {t('scan.type')}
-            </AppText>
+            </Display>
             <Spacer size="md" />
             <View style={styles.chips}>
               {PAPER_TYPES.map((p) => (
-                <Pressable
+                <Chip
                   key={p}
+                  label={t(PAPER_TYPE_META[p].i18nKey)}
+                  icon={PAPER_TYPE_META[p].icon}
+                  selected={paper.type === p}
                   onPress={() => setType(p)}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: paper.type === p ? theme.colors.primary : theme.colors.border,
-                      backgroundColor: paper.type === p ? theme.colors.primary : theme.colors.cardAlt,
-                    },
-                  ]}
-                >
-                  <Icon name={PAPER_TYPE_META[p].icon} size={16} color={paper.type === p ? theme.colors.onPrimary : theme.colors.text} />
-                  <AppText size="small" weight="600" color={paper.type === p ? theme.colors.onPrimary : theme.colors.text}>
-                    {t(PAPER_TYPE_META[p].i18nKey)}
-                  </AppText>
-                </Pressable>
+                />
               ))}
             </View>
             <Spacer size="lg" />
-            <Button title={t('common.cancel')} variant="ghost" onPress={() => setEditing(false)} />
+            <Button title={t('common.cancel')} variant="ghost" onPress={() => setEditing(false)} block />
           </View>
         </Pressable>
       </Modal>
-
-      {/* Delete with 10-second Undo */}
-      {deleted ? (
-        <View style={[styles.undo, { backgroundColor: theme.colors.text }]}>
-          <AppText size="small" weight="600" color={theme.colors.bg}>
-            {t('papers.deleted')}
-          </AppText>
-          <Button title={t('common.undo')} variant="secondary" onPress={undo} />
-        </View>
-      ) : null}
     </Screen>
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  const dir = useDirection();
-  return (
-    <Row style={{ justifyContent: 'space-between', paddingVertical: 10, flexDirection: dir.row }}>
-      <AppText size="small" muted>
-        {label}
-      </AppText>
-      <AppText size="body" weight="600" style={{ flexShrink: 1, textAlign: dir.textAlign }}>
-        {value}
-      </AppText>
-    </Row>
-  );
-}
-
 const styles = StyleSheet.create({
-  iconBox: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  paper: { backgroundColor: '#FFFFFF' },
+  paperLine: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(15,23,42,0.10)', marginVertical: 12 },
+  paperText: { lineHeight: 22 },
+  iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   preview: { width: '100%', height: 320, borderRadius: 12 },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
-  undo: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 24,
-    borderRadius: 16,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
 });

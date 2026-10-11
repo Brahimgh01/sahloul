@@ -1,17 +1,19 @@
-// Board view: a simple kanban of devices by status (spec 5.1 "Vue tableau").
+// Board view: a horizontal kanban of devices by status (spec 5.1 "Vue tableau").
+// Redesign: soft snap columns + compact mini cards (see design prototype `.board`/`.col`/`.mini`).
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { Entry, PressScale } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { AppText, Card, Icon, Row, Spacer } from '@/components/ui';
+import { AppText, Icon, Row, Tag } from '@/components/ui';
 import type { DeviceWithTrip } from '@/data/queries';
-import { useDirection, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import type { RootStackParamList } from '@/navigation/types';
 import { useWork } from '@/store/work';
 import { useTheme } from '@/theme/ThemeProvider';
-import type { Palette } from '@/theme/tokens';
+import { cardShadow, type Palette } from '@/theme/tokens';
 import type { DeviceStatus } from '@/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -23,18 +25,20 @@ interface Column {
 }
 
 const COLUMNS: Column[] = [
-  { status: 'in_office', key: 'board.inOffice', colorKey: 'info' },
-  { status: 'at_company', key: 'board.atCompany', colorKey: 'due' },
-  { status: 'ready_for_pickup', key: 'board.ready', colorKey: 'primary' },
+  { status: 'in_office', key: 'board.inOffice', colorKey: 'textMuted' },
+  { status: 'at_company', key: 'board.atCompany', colorKey: 'info' },
+  { status: 'ready_for_pickup', key: 'board.ready', colorKey: 'due' },
   { status: 'back_in_service', key: 'board.inService', colorKey: 'done' },
 ];
 
 export function BoardScreen() {
   const theme = useTheme();
   const { t } = useT();
-  const dir = useDirection();
   const nav = useNavigation<Nav>();
+  const { width } = useWindowDimensions();
   const devices = useWork((s) => s.devices);
+
+  const colWidth = Math.min(width * 0.8, 280);
 
   const grouped = useMemo(() => {
     const map: Record<string, DeviceWithTrip[]> = {};
@@ -45,76 +49,110 @@ export function BoardScreen() {
     return map;
   }, [devices]);
 
+  const miniStyle = {
+    backgroundColor: theme.colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.line,
+    borderRadius: 14,
+    padding: theme.spacing.md,
+    ...cardShadow(theme.mode, 1),
+  } as const;
+
   return (
     <Screen edges={[]}>
-      <View style={{ padding: theme.spacing.lg }}>
-        <Row style={{ gap: 8 }}>
-          <Icon name="view-column-outline" size={26} color={theme.colors.primary} />
-          <AppText size="title" weight="700">
-            {t('board.title')}
-          </AppText>
-        </Row>
+      {/* Small muted hint (icon + word), matching the prototype's top line. */}
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.xs }}>
+        <Entry>
+          <Row style={{ gap: 8 }}>
+            <Icon name="layers-outline" size={14} color={theme.colors.textMuted} />
+            <AppText size="small" muted style={{ flex: 1 }}>
+              {t('common.open')}
+            </AppText>
+          </Row>
+        </Entry>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.lg, gap: 12 }}>
-        {COLUMNS.map((col) => {
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          gap: 12,
+          paddingHorizontal: theme.spacing.lg,
+          paddingTop: theme.spacing.xs,
+          paddingBottom: theme.spacing.xl,
+          flexGrow: 1,
+          alignItems: 'stretch',
+        }}
+      >
+        {COLUMNS.map((col, ci) => {
           const color = theme.colors[col.colorKey];
           const items = grouped[col.status] ?? [];
           return (
-            <View key={col.status} style={[styles.column, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-              <Row style={{ gap: 8, padding: theme.spacing.md, flexDirection: dir.row }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
-                <AppText size="body" weight="700" style={{ flex: 1 }}>
-                  {t(col.key)}
-                </AppText>
-                <AppText size="small" weight="700" color={color}>
-                  {items.length}
-                </AppText>
-              </Row>
-
-              <ScrollView contentContainerStyle={{ padding: theme.spacing.md, paddingTop: 0 }} showsVerticalScrollIndicator={false}>
-                {items.length === 0 ? (
-                  <AppText size="small" muted align="center" style={{ marginTop: theme.spacing.lg }}>
-                    {t('common.none')}
+            <Entry key={col.status} delay={ci * 70} style={{ width: colWidth }}>
+              <View style={{ flex: 1 }}>
+                {/* Column header: dot + bold title + tinted count pill. */}
+                <Row style={{ gap: 8, marginBottom: theme.spacing.sm }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: color }} />
+                  <AppText size="body" weight="700" numberOfLines={1} style={{ flex: 1 }}>
+                    {t(col.key)}
                   </AppText>
-                ) : (
-                  items.map((d) => (
-                    <Pressable key={d.id} onPress={() => nav.navigate('Device', { id: d.id })} style={{ marginBottom: theme.spacing.sm }}>
-                      <Card style={{ borderLeftWidth: 4, borderLeftColor: d.is_late ? theme.colors.late : color }}>
-                        <AppText size="body" weight="600" numberOfLines={1}>
-                          {d.type}
-                        </AppText>
-                        <AppText size="small" muted numberOfLines={1}>
-                          {d.inventory_no}
-                        </AppText>
-                        <Spacer size="xs" />
-                        <Row style={{ gap: 6 }}>
-                          <Icon name="hospital-building" size={13} color={theme.colors.textMuted} />
-                          <AppText size="tiny" muted numberOfLines={1} style={{ flex: 1 }}>
-                            {d.department}
+                  <View
+                    accessibilityLabel={`${items.length}`}
+                    style={{
+                      minWidth: 30,
+                      height: 30,
+                      paddingHorizontal: 9,
+                      borderRadius: 15,
+                      backgroundColor: color + '26',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <AppText size="small" weight="700" color={color}>
+                      {items.length}
+                    </AppText>
+                  </View>
+                </Row>
+
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: theme.spacing.lg }}>
+                  {items.length === 0 ? (
+                    <View style={[miniStyle, { backgroundColor: theme.colors.surface2 }]}>
+                      <AppText size="small" muted align="center">
+                        {t('today.allGood')}
+                      </AppText>
+                    </View>
+                  ) : (
+                    items.map((d) => (
+                      <PressScale
+                        key={d.id}
+                        onPress={() => nav.navigate('Device', { id: d.id })}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${d.type} ${d.inventory_no}`}
+                        style={{ marginBottom: 10 }}
+                      >
+                        <View style={miniStyle}>
+                          <AppText size="body" weight="700" numberOfLines={1}>
+                            {d.type} · {d.brand}
                           </AppText>
-                        </Row>
-                        {d.is_late ? (
-                          <>
-                            <Spacer size="xs" />
-                            <AppText size="tiny" weight="700" color={theme.colors.late}>
-                              {t('today.daysLate', { count: d.days_late })}
-                            </AppText>
-                          </>
-                        ) : null}
-                      </Card>
-                    </Pressable>
-                  ))
-                )}
-              </ScrollView>
-            </View>
+                          <AppText size="tiny" muted numberOfLines={1}>
+                            {d.inventory_no} · {d.department}
+                          </AppText>
+                          {d.is_late ? (
+                            <View style={{ marginTop: 6 }}>
+                              <Tag tone="late" icon="alert-outline" label={t('today.daysLate', { count: d.days_late })} />
+                            </View>
+                          ) : null}
+                        </View>
+                      </PressScale>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            </Entry>
           );
         })}
       </ScrollView>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  column: { width: 260, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-});

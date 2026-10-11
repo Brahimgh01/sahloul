@@ -1,10 +1,13 @@
 // About: a short, warm page (spec 5.8).
+// Redesign: the Nova mascot, a display title, a small facts card and a privacy card.
 import Constants from 'expo-constants';
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
+import { Mascot } from '@/components/Mascot';
+import { Entry } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { AppText, Card, Icon, Row, Spacer } from '@/components/ui';
+import { AppText, Card, Display, Group, Icon, KV, Row, Spacer } from '@/components/ui';
 import { useT } from '@/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 
@@ -15,43 +18,43 @@ export function AboutScreen() {
 
   return (
     <Screen edges={[]}>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 160 }}>
-        <View style={{ alignItems: 'center', marginTop: theme.spacing.xl }}>
-          <View style={[styles.logo, { backgroundColor: theme.colors.primary }]}>
-            <Icon name="hospital-box" size={46} color={theme.colors.onPrimary} />
-          </View>
-          <Spacer size="lg" />
-          <AppText size="title" weight="700">
-            {t('common.appName')}
-          </AppText>
-          <AppText size="small" muted>
-            {t('common.version')} {version}
-          </AppText>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 160, alignItems: 'center' }}>
+        <Spacer size="xl" />
 
-        <Spacer size="xxl" />
-        <Card>
-          <Row style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Icon name="heart-outline" size={24} color={theme.colors.late} />
-            <AppText size="body" style={{ flex: 1, lineHeight: 24 }}>
-              {t('about.thanks')}
-            </AppText>
-          </Row>
-          <Spacer size="lg" />
-          <Row style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Icon name="school-outline" size={24} color={theme.colors.primary} />
-            <AppText size="body" style={{ flex: 1, lineHeight: 24 }}>
-              {t('about.madeBy')}
-            </AppText>
-          </Row>
-          <Spacer size="lg" />
-          <Row style={{ gap: 10, alignItems: 'flex-start' }}>
-            <Icon name="shield-lock-outline" size={24} color={theme.colors.done} />
-            <AppText size="body" style={{ flex: 1, lineHeight: 24 }}>
-              {t('about.privacy')}
-            </AppText>
-          </Row>
-        </Card>
+        <Entry>
+          <Mascot size={120} />
+        </Entry>
+
+        <Spacer size="md" />
+        <Entry delay={80} style={{ alignSelf: 'stretch' }}>
+          <Display size="title" align="center">
+            {t('common.appName')}
+          </Display>
+          <Spacer size="xs" />
+          <AppText size="small" muted align="center" style={{ alignSelf: 'center', maxWidth: 320 }}>
+            {t('about.thanks')}
+          </AppText>
+        </Entry>
+
+        <Spacer size="xl" />
+        <Entry delay={140} style={{ alignSelf: 'stretch' }}>
+          <Group>
+            <KV label={t('common.version')} value={version} />
+            <KV label={t('about.title')} value={t('about.madeBy')} />
+          </Group>
+        </Entry>
+
+        <Spacer size="md" />
+        <Entry delay={200} style={{ alignSelf: 'stretch' }}>
+          <Card>
+            <Row style={{ gap: 12, alignItems: 'flex-start' }}>
+              <Icon name="shield-check-outline" size={24} color={theme.colors.done} />
+              <AppText size="body" style={{ flex: 1 }}>
+                {t('about.privacy')}
+              </AppText>
+            </Row>
+          </Card>
+        </Entry>
 
         <Spacer size="lg" />
         <Row style={{ gap: 8, justifyContent: 'center' }}>
@@ -64,7 +67,3 @@ export function AboutScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  logo: { width: 96, height: 96, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-});

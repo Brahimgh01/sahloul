@@ -12,7 +12,7 @@ import Animated, {
 
 import { SwipeRow } from '@/components/SwipeRow';
 import { Tag } from '@/components/StatusChip';
-import { AppText, Icon, type IconName } from '@/components/ui';
+import { AppText, Display, Icon, type IconName } from '@/components/ui';
 import type { DeviceWithTrip } from '@/data/queries';
 import { useDirection, useT } from '@/i18n';
 import { deviceIcon } from '@/lib/status';
@@ -105,21 +105,29 @@ export function DeviceCard({
           },
         ]}
       >
-        <View style={[styles.accent, { backgroundColor: accent }]} />
+        <View
+          style={[
+            styles.accent,
+            { backgroundColor: accent },
+            dir.isRTL
+              ? { left: 'auto', right: 0, borderTopRightRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }
+              : null,
+          ]}
+        />
         {isCritical ? (
           <Animated.View
             pointerEvents="none"
             style={[styles.glow, { borderColor: theme.colors.critical }, glowStyle]}
           />
         ) : null}
-        <View style={[styles.row, { flexDirection: dir.row }]}>
+        <View style={[styles.row, { flexDirection: dir.row }, dir.isRTL ? { paddingLeft: 0, paddingRight: 6 } : null]}>
           <View style={[styles.iconBox, { backgroundColor: accent + '1A' }]}>
             <Icon name={deviceIcon(device.type) as IconName} size={26} color={accent} />
           </View>
           <View style={{ flex: 1, gap: 4 }}>
-            <AppText size="body" weight="600" numberOfLines={1}>
+            <Display size="body" weight="700" numberOfLines={1}>
               {device.type} · {device.brand}
-            </AppText>
+            </Display>
             <AppText size="small" muted numberOfLines={1}>
               {device.inventory_no}
               {showCompany && device.trip_company_name ? ` · ${device.trip_company_name}` : ''}
@@ -151,10 +159,12 @@ const styles = StyleSheet.create({
   },
   accent: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
+    top: 12,
+    bottom: 12,
     left: 0,
-    width: 5,
+    width: 6,
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
   },
   glow: {
     position: 'absolute',

@@ -1,15 +1,17 @@
-// Devices: search (type / speak / scan), filters, and the list (spec 5.2).
+// Devices: search (type / speak / scan), filter rail, and the list (spec 5.2).
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { AppBar } from '@/components/AppBar';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { DeviceCard } from '@/components/DeviceCard';
+import { Entry } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { AppText, Button, Chip, EmptyState, Icon, IconButton, Row, Spacer } from '@/components/ui';
+import { AppText, Button, Chip, Display, EmptyState, IconButton, SearchBar, Spacer } from '@/components/ui';
 import { applyFilters, type DeviceFilters, type DeviceWithTrip } from '@/data/queries';
-import { useDirection, useT } from '@/i18n';
+import { useT } from '@/i18n';
 import type { RootStackParamList } from '@/navigation/types';
 import { haptic, success } from '@/services/feedback';
 import { useLiveSpeech, startListening, stopListening } from '@/services/speech';
@@ -25,7 +27,6 @@ const STATUSES: (DeviceStatus | 'all')[] = ['all', 'in_office', 'at_company', 'r
 export function DevicesScreen() {
   const theme = useTheme();
   const { t } = useT();
-  const dir = useDirection();
   const nav = useNavigation<Nav>();
   const devices = useWork((s) => s.devices);
   const companies = useWork((s) => s.companies);
@@ -55,6 +56,8 @@ export function DevicesScreen() {
     (filters.company && filters.company !== 'all' ? 1 : 0) +
     (filters.criticalOnly ? 1 : 0);
 
+  const clearFilters = () => setFilters({ status: 'all', department: 'all', company: 'all', criticalOnly: false });
+
   const toggleSpeak = async () => {
     if (listening) {
       stopListening();
@@ -67,77 +70,69 @@ export function DevicesScreen() {
     if (!ok) setListening(false);
   };
 
-  const renderItem = ({ item }: { item: DeviceWithTrip }) => (
-    <DeviceCard
-      device={item}
-      onPress={() => nav.navigate('Device', { id: item.id })}
-      onLongPress={() => nav.navigate('Device', { id: item.id })}
-    />
+  const renderItem = ({ item, index }: { item: DeviceWithTrip; index: number }) => (
+    <Entry delay={Math.min(index, 8) * 35} style={{ marginBottom: theme.spacing.md }}>
+      <DeviceCard
+        device={item}
+        onPress={() => nav.navigate('Device', { id: item.id })}
+        onLongPress={() => nav.navigate('Device', { id: item.id })}
+      />
+    </Entry>
   );
 
   return (
-    <Screen>
-      <View style={{ padding: theme.spacing.lg, paddingBottom: 0 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <AppText size="title" weight="700">
-            {t('devices.title')}
-          </AppText>
-          <IconButton name="tray-arrow-down" label={t('devices.import')} onPress={() => nav.navigate('ImportCsv')} />
-        </Row>
+    <Screen edges={[]}>
+      <AppBar
+        title={t('devices.title')}
+        right={<IconButton name="tray-arrow-down" label={t('devices.import')} onPress={() => nav.navigate('ImportCsv')} />}
+      />
 
-        <Spacer size="md" />
-        <View
-          style={[
-            styles.search,
-            { backgroundColor: theme.colors.cardAlt, borderColor: theme.colors.border, flexDirection: dir.row },
-          ]}
-        >
-          <Icon name="magnify" size={22} color={theme.colors.textMuted} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder={t('devices.searchPlaceholder')}
-            placeholderTextColor={theme.colors.textFaint}
-            style={[styles.input, { color: theme.colors.text, textAlign: dir.textAlign }]}
-            accessibilityLabel={t('common.search')}
-          />
-          <Pressable onPress={toggleSpeak} hitSlop={8} accessibilityLabel={t('devices.speakSearch')}>
-            <Icon name={listening ? 'microphone' : 'microphone-outline'} size={22} color={listening ? theme.colors.primary : theme.colors.textMuted} />
-          </Pressable>
-          <Pressable onPress={() => setScanning(true)} hitSlop={8} accessibilityLabel={t('devices.scanBarcode')}>
-            <Icon name="barcode-scan" size={22} color={theme.colors.textMuted} />
-          </Pressable>
-        </View>
-
-        <Spacer size="md" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          <Chip
-            label={t('devices.criticalOnly')}
-            icon="alert-circle-outline"
-            selected={!!filters.criticalOnly}
-            color={theme.colors.critical}
-            onPress={() => setFilters((f) => ({ ...f, criticalOnly: !f.criticalOnly }))}
-          />
-          <Chip
-            label={t('devices.filterStatus')}
-            icon="progress-wrench"
-            selected={(filters.status ?? 'all') !== 'all'}
-            onPress={() => setShowFilters(true)}
-          />
-          <Chip
-            label={t('devices.filterDepartment')}
-            icon="hospital-building"
-            selected={(filters.department ?? 'all') !== 'all'}
-            onPress={() => setShowFilters(true)}
-          />
-          {activeFilters > 0 ? (
-            <Chip
-              label={t('devices.clearFilters')}
-              icon="filter-off-outline"
-              onPress={() => setFilters({ status: 'all', department: 'all', company: 'all', criticalOnly: false })}
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md }}>
+        <Entry>
+          <SearchBar value={search} onChangeText={setSearch} placeholder={t('devices.searchPlaceholder')}>
+            <IconButton
+              name={listening ? 'microphone' : 'microphone-outline'}
+              label={t('devices.speakSearch')}
+              onPress={toggleSpeak}
+              color={listening ? theme.colors.brand : theme.colors.textMuted}
             />
-          ) : null}
-        </ScrollView>
+            <IconButton name="barcode-scan" label={t('devices.scanBarcode')} onPress={() => setScanning(true)} color={theme.colors.textMuted} />
+          </SearchBar>
+        </Entry>
+
+        <Spacer size="md" />
+        <Entry delay={40}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+            <Chip
+              label={t('devices.criticalOnly')}
+              icon="alert-circle-outline"
+              tone="crit"
+              selected={!!filters.criticalOnly}
+              onPress={() => setFilters((f) => ({ ...f, criticalOnly: !f.criticalOnly }))}
+            />
+            <Chip
+              label={t('devices.filterStatus')}
+              icon="progress-wrench"
+              selected={(filters.status ?? 'all') !== 'all'}
+              onPress={() => setShowFilters(true)}
+            />
+            <Chip
+              label={t('devices.filterDepartment')}
+              icon="hospital-building"
+              selected={(filters.department ?? 'all') !== 'all'}
+              onPress={() => setShowFilters(true)}
+            />
+            <Chip
+              label={t('devices.filterCompany')}
+              icon="office-building"
+              selected={(filters.company ?? 'all') !== 'all'}
+              onPress={() => setShowFilters(true)}
+            />
+            {activeFilters > 0 ? (
+              <Chip label={t('devices.clearFilters')} icon="filter-off-outline" onPress={clearFilters} />
+            ) : null}
+          </ScrollView>
+        </Entry>
 
         <Spacer size="sm" />
         <AppText size="small" muted>
@@ -174,10 +169,10 @@ export function DevicesScreen() {
       {/* Filter sheet */}
       <Modal visible={showFilters} transparent animationType="fade" onRequestClose={() => setShowFilters(false)}>
         <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={() => setShowFilters(false)}>
-          <View style={[styles.sheet, { backgroundColor: theme.colors.card }]}>
-            <AppText size="section" weight="700">
+          <View style={[styles.sheet, { backgroundColor: theme.colors.surface }]}>
+            <Display size="lg" weight="700">
               {t('devices.filters')}
-            </AppText>
+            </Display>
             <Spacer size="md" />
 
             <AppText size="small" muted>
@@ -229,16 +224,8 @@ export function DevicesScreen() {
 }
 
 const styles = StyleSheet.create({
-  search: {
-    minHeight: 52,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    gap: 12,
-  },
-  input: { flex: 1, fontSize: 16, paddingVertical: 10 },
+  rail: { gap: 8, paddingRight: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '85%' },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '85%' },
 });

@@ -164,6 +164,7 @@ export function TodayScreen() {
         right={
           <>
             <SyncBadge />
+            <IconButton name="creation" label={t('assistant.title')} onPress={() => nav.navigate('Assistant')} />
             <IconButton name="cog-outline" label={t('settings.title')} onPress={() => nav.navigate('Settings')} />
           </>
         }
@@ -198,18 +199,21 @@ export function TodayScreen() {
                 }
               />
               <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
-                <Display size="title" weight="800" color="#FFFFFF" numberOfLines={1}>
-                  {t('today.allGood')}
-                </Display>
                 <View style={styles.streak}>
                   <Icon name="fire" size={16} color="#FFE08A" />
                   <AppText size="small" weight="700" color="#FFFFFF">
                     {t('game.streakDays', { n: streak })}
                   </AppText>
                 </View>
-                <AppText size="tiny" weight="600" color="rgba(255,255,255,0.9)">
-                  {t('game.level', { n: lvl.level })} · {t('game.toNext', { n: lvl.need - lvl.into })}
+                <Display size="title" weight="800" color="#FFFFFF" numberOfLines={1}>
+                  {t('today.allGood')}
+                </Display>
+                <AppText size="tiny" weight="600" color="rgba(255,255,255,0.9)" numberOfLines={2}>
+                  {counts.away} {t('today.away')} · {counts.late} {t('today.late').toLowerCase()}
                 </AppText>
+                <View style={styles.healthTrack}>
+                  <View style={[styles.healthFill, { width: `${Math.round(clear * 100)}%` }]} />
+                </View>
               </View>
             </Row>
 
@@ -324,6 +328,8 @@ export function TodayScreen() {
 
 const styles = StyleSheet.create({
   hero: { padding: 18 },
+  healthTrack: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.25)' },
+  healthFill: { height: '100%', borderRadius: 3, backgroundColor: '#FFFFFF' },
   streak: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,8 +4,9 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { Entry } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { AppText, Button, Card, Chip, Icon, Row, Spacer } from '@/components/ui';
+import { AppText, Button, Card, Chip, GroupHeading, Icon, Row, Spacer } from '@/components/ui';
 import { getDeviceWithTrip, getDeviceTrips, type DeviceWithTrip } from '@/data/queries';
 import { updateRow } from '@/db/repo';
 import { useDirection, useT } from '@/i18n';
@@ -15,6 +16,7 @@ import type { RootStackParamList } from '@/navigation/types';
 import { haptic, success } from '@/services/feedback';
 import { cancelTripReminders } from '@/services/notifications';
 import { printReceptionSheet } from '@/services/pdf';
+import { celebrate, toast } from '@/store/feedback';
 import { useWork } from '@/store/work';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { DeviceStatus, Trip, TripResult } from '@/types';
@@ -85,6 +87,8 @@ export function ReturnScreen() {
       await updateRow('devices', device.id, { status: place });
       await refresh();
       success();
+      celebrate();
+      toast(t('toast.returned'), { tone: 'success', icon: 'package-variant-closed-check' });
       if (print && trip) await printReceptionSheet(trip, device, company, 'fr');
       nav.goBack();
     } finally {
@@ -94,39 +98,48 @@ export function ReturnScreen() {
 
   return (
     <Screen edges={[]} hideMic>
-      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 200 }}>
-        <Card>
-          <Row style={{ gap: 10 }}>
-            <Icon name="package-variant-closed-check" size={26} color={theme.colors.done} />
-            <View style={{ flex: 1 }}>
-              <AppText size="section" weight="700">
-                {t('returnFlow.title')}
-              </AppText>
-              <AppText size="small" muted>
-                {device.type} · {device.inventory_no}
-              </AppText>
-              {company ? (
-                <AppText size="small" muted>
-                  {company.name} · {t('device.sentOn', { date: formatDate(trip?.sent_date) })}
+      <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 180 }} keyboardShouldPersistTaps="handled">
+        <Entry>
+          <Card>
+            <Row style={{ gap: 12 }}>
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 15,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: theme.colors.success + '22',
+                }}
+              >
+                <Icon name="wrench" size={24} color={theme.colors.success} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText size="body" weight="700">
+                  {device.type} · {device.brand}
                 </AppText>
-              ) : null}
-            </View>
-          </Row>
-        </Card>
+                <AppText size="small" muted>
+                  {device.inventory_no}
+                </AppText>
+                {company ? (
+                  <AppText size="small" muted numberOfLines={1}>
+                    {company.name} · {t('device.sentOn', { date: formatDate(trip?.sent_date) })}
+                  </AppText>
+                ) : null}
+              </View>
+            </Row>
+          </Card>
+        </Entry>
 
-        <Spacer size="lg" />
-        <AppText size="body" weight="600">
-          {t('returnFlow.result')}
-        </AppText>
-        <Spacer size="sm" />
-        <View style={styles.chips}>
+        <GroupHeading>{t('returnFlow.result')}</GroupHeading>
+        <View style={[styles.chips, { flexDirection: dir.row }]}>
           {RESULTS.map((r) => (
             <Chip
               key={r}
               label={t(RESULT_KEYS[r])}
               selected={result === r}
+              tone={r === 'repaired' ? 'ok' : r === 'replaced' ? 'info' : 'crit'}
               icon={r === 'repaired' ? 'check-circle-outline' : r === 'replaced' ? 'swap-horizontal' : 'close-circle-outline'}
-              color={r === 'repaired' ? theme.colors.done : r === 'replaced' ? theme.colors.info : theme.colors.late}
               onPress={() => {
                 haptic('select');
                 setResult(r);
@@ -136,38 +149,54 @@ export function ReturnScreen() {
         </View>
 
         <Spacer size="lg" />
-        <AppText size="body" weight="600">
+        <AppText size="small" weight="700" muted style={{ marginBottom: 6 }}>
           {t('returnFlow.cost')}
         </AppText>
-        <Spacer size="sm" />
         <TextInput
           value={costText}
           onChangeText={setCostText}
           keyboardType="decimal-pad"
           placeholder="0.000"
           placeholderTextColor={theme.colors.textFaint}
-          style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, textAlign: dir.textAlign }]}
+          style={[
+            styles.input,
+            {
+              color: theme.colors.text,
+              borderColor: theme.colors.line,
+              backgroundColor: theme.colors.surface,
+              textAlign: dir.textAlign,
+            },
+          ]}
         />
 
         <Spacer size="lg" />
-        <AppText size="body" weight="600">
-          {t('returnFlow.wherePut')}
-        </AppText>
-        <Spacer size="sm" />
-        <View style={styles.chips}>
+        <Button
+          title={t('returnFlow.scanReception')}
+          icon="line-scan"
+          variant="outline"
+          block
+          onPress={() => nav.navigate('Scan', { deviceId: device.id, tripId: trip?.id, companyId: trip?.company_id })}
+        />
+
+        <GroupHeading>{t('returnFlow.wherePut')}</GroupHeading>
+        <View style={[styles.chips, { flexDirection: dir.row }]}>
           {PLACES.map((p) => (
-            <Chip key={p} label={t(`statuses.${p}`)} selected={place === p} onPress={() => setPlace(p)} />
+            <Chip
+              key={p}
+              label={t(`statuses.${p}`)}
+              selected={place === p}
+              icon={p === 'back_in_service' ? 'check-circle-outline' : p === 'ready_for_pickup' ? 'package-variant-closed' : 'office-building'}
+              onPress={() => setPlace(p)}
+            />
           ))}
         </View>
 
-        <Spacer size="lg" />
-        <Button title={t('returnFlow.scanReception')} icon="line-scan" variant="secondary" onPress={() => nav.navigate('Scan', { deviceId: device.id, tripId: trip?.id, companyId: trip?.company_id })} />
-      </ScrollView>
-
-      <View style={[styles.bottom, { backgroundColor: theme.colors.card, borderTopColor: theme.colors.border }]}>
+        <Spacer size="xl" />
         <Button
           title={t('common.save')}
           icon="check"
+          variant="success"
+          block
           loading={busy}
           disabled={result == null}
           onPress={() => {
@@ -176,13 +205,13 @@ export function ReturnScreen() {
           }}
         />
         <Spacer size="sm" />
-        <Button title={t('device.printReception')} variant="secondary" disabled={result == null} onPress={() => doSave(true)} />
-      </View>
+        <Button title={t('device.printReception')} variant="ghost" block disabled={result == null} onPress={() => doSave(true)} />
+      </ScrollView>
 
       {/* Take the lent spare back (version 2) */}
       <Modal visible={askLoan} transparent animationType="fade" onRequestClose={() => setAskLoan(false)}>
         <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
-          <View style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
+          <View style={[styles.modalCard, { backgroundColor: theme.colors.surface }]}>
             <Row style={{ gap: 8 }}>
               <Icon name="swap-horizontal" size={24} color={theme.colors.due} />
               <AppText size="section" weight="700">
@@ -192,6 +221,7 @@ export function ReturnScreen() {
             <Spacer size="lg" />
             <Button
               title={t('common.yes')}
+              block
               onPress={() => {
                 setAskLoan(false);
                 doSave(false);
@@ -201,6 +231,7 @@ export function ReturnScreen() {
             <Button
               title={t('common.notNow')}
               variant="ghost"
+              block
               onPress={() => {
                 setAskLoan(false);
                 doSave(false);
@@ -214,9 +245,15 @@ export function ReturnScreen() {
 }
 
 const styles = StyleSheet.create({
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  input: { minHeight: 52, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, fontSize: 18, fontWeight: '600' },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 16, borderTopWidth: StyleSheet.hairlineWidth },
+  chips: { flexWrap: 'wrap', gap: 8 },
+  input: {
+    minHeight: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    fontWeight: '600',
+  },
   backdrop: { flex: 1, justifyContent: 'center', padding: 24 },
   modalCard: { borderRadius: 20, padding: 20 },
 });

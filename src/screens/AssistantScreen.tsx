@@ -198,9 +198,9 @@ export function AssistantScreen() {
           <Row style={{ gap: 12, flex: 1 }}>
             <Mascot size={54} />
             <View style={{ flex: 1 }}>
-              <AppText size="title" weight="700" color="#fff">
+              <Display size="title" weight="800" color="#fff">
                 {t('assistant.title')}
-              </AppText>
+              </Display>
               <AppText size="tiny" weight="600" color="rgba(255,255,255,0.9)">
                 {t('assistant.persona')}
               </AppText>
@@ -325,9 +325,9 @@ export function AssistantScreen() {
           <View style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
             <Row style={{ gap: 10 }}>
               <Mascot size={44} animate={false} />
-              <AppText size="section" weight="700" style={{ flex: 1 }}>
+              <Display size="section" weight="700" style={{ flex: 1 }}>
                 {t('assistant.confirmTitle')}
-              </AppText>
+              </Display>
             </Row>
             {confirm ? (
               <>
