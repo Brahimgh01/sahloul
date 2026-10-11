@@ -135,6 +135,9 @@ export async function callAssistant(payload: unknown) {
     headers: { ...headers(token), apikey: c.anonKey || 'dev' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`assistant: ${res.status}`);
+  if (!res.ok) {
+    const failure = (await res.json().catch(() => ({}))) as { code?: unknown };
+    throw new Error(typeof failure.code === 'string' ? failure.code : 'upstream_error');
+  }
   return res.json();
 }

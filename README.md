@@ -113,6 +113,12 @@ The AI key is **never** in the app — the phone only sends a short text summary
 of late/critical devices to the server function. The assistant always asks
 before it opens a screen or changes anything.
 
+Nova can answer questions from live inventory data, open devices and companies,
+navigate to app sections, and prepare the existing send/return forms. The user
+reviews and saves those forms; Nova cannot write app source code or run arbitrary
+commands. Online answers require an OpenAI API key with available API credits;
+the browser assistant links to OpenAI billing when the account has no credits.
+
 ### Try the real assistant in the browser (no phone needed)
 
 The browser preview can talk to the real OpenAI assistant through the little

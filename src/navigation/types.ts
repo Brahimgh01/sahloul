@@ -12,7 +12,7 @@ export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList>;
   Device: { id: string };
   Company: { id: string };
-  Send: { deviceIds?: string[] } | undefined;
+  Send: { deviceIds?: string[]; companyId?: string } | undefined;
   Return: { deviceId: string; tripId?: string };
   Scan: { deviceId?: string; tripId?: string; companyId?: string } | undefined;
   PaperCheck: { draftId: string };

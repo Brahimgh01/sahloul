@@ -18,7 +18,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1E1B4B"
+      "backgroundColor": "#102A22"
     },
     "ios": {
       "supportsTablet": true,
@@ -36,7 +36,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#4F46E5"
+        "backgroundColor": "#087F66"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -61,7 +61,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#0B3C74",
+          "color": "#087F66",
           "sounds": [
             "./assets/sounds/device_late.wav",
             "./assets/sounds/critical_waiting.wav",

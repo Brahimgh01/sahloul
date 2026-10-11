@@ -1,8 +1,8 @@
 // Design tokens: one place for colors, spacing, sizes.
 // Rule from the spec: buttons >= 48px, body text >= 16px, status = color + icon + word.
 //
-// The palette now follows the "S-IT Hub" redesign (Open Design prototype):
-// indigo / violet / cyan brand on a soft slate canvas. Old colour names are kept
+// The palette now follows the "S-IT Hub" redesign: jade, coral and marigold on
+// a soft botanical canvas. Old colour names are kept
 // as aliases so no screen has to change just because a token was renamed.
 
 export const spacing = {
@@ -75,30 +75,30 @@ export interface Palette {
 }
 
 const light: Palette = {
-  bg: '#EEF1F8',
+  bg: '#F1F7F4',
   surface: '#FFFFFF',
-  surface2: '#F5F7FC',
+  surface2: '#E8F1EC',
   card: '#FFFFFF',
-  cardAlt: '#F5F7FC',
-  border: '#E2E7F1',
-  line: '#E2E7F1',
+  cardAlt: '#E8F1EC',
+  border: '#D8E5DD',
+  line: '#D8E5DD',
   overlay: 'rgba(11,18,32,0.55)',
 
-  text: '#0F172A',
-  ink: '#0F172A',
-  textMuted: '#54627A',
-  muted: '#54627A',
-  textFaint: '#8B98AD',
-  faint: '#8B98AD',
+  text: '#17251F',
+  ink: '#17251F',
+  textMuted: '#52675C',
+  muted: '#52675C',
+  textFaint: '#82948A',
+  faint: '#82948A',
 
-  primary: '#4F46E5',
-  brand: '#4F46E5',
-  brand2: '#7C3AED',
-  brand3: '#06B6D4',
+  primary: '#087F66',
+  brand: '#087F66',
+  brand2: '#D85F48',
+  brand3: '#E6AD36',
   onPrimary: '#FFFFFF',
   onBrand: '#FFFFFF',
-  primarySoft: '#EEF0FF',
-  brandSoft: '#EEF0FF',
+  primarySoft: '#E2F2EB',
+  brandSoft: '#E2F2EB',
 
   late: '#E11D48',
   danger: '#E11D48',
@@ -107,39 +107,39 @@ const light: Palette = {
   warn: '#E1850A',
   done: '#16A34A',
   success: '#16A34A',
-  info: '#2563EB',
-  gold: '#EAB308',
+  info: '#167E8A',
+  gold: '#C98916',
 
   syncOk: '#16A34A',
   syncWait: '#E1850A',
-  syncOff: '#8B98AD',
+  syncOff: '#82948A',
 };
 
 const dark: Palette = {
-  bg: '#0A1120',
-  surface: '#121B2E',
-  surface2: '#182338',
-  card: '#121B2E',
-  cardAlt: '#182338',
-  border: '#27324A',
-  line: '#27324A',
+  bg: '#0C1915',
+  surface: '#14251F',
+  surface2: '#1B3229',
+  card: '#14251F',
+  cardAlt: '#1B3229',
+  border: '#2A4437',
+  line: '#2A4437',
   overlay: 'rgba(0,0,0,0.6)',
 
-  text: '#E9EFFA',
-  ink: '#E9EFFA',
-  textMuted: '#A3B3CE',
-  muted: '#A3B3CE',
-  textFaint: '#6F83A1',
-  faint: '#6F83A1',
+  text: '#EDF6F0',
+  ink: '#EDF6F0',
+  textMuted: '#B2C6B8',
+  muted: '#B2C6B8',
+  textFaint: '#789385',
+  faint: '#789385',
 
-  primary: '#7C8DFF',
-  brand: '#7C8DFF',
-  brand2: '#A06BFF',
-  brand3: '#22D3EE',
-  onPrimary: '#081020',
-  onBrand: '#081020',
-  primarySoft: '#1A2340',
-  brandSoft: '#1A2340',
+  primary: '#55D6AB',
+  brand: '#55D6AB',
+  brand2: '#FF9479',
+  brand3: '#F3C85D',
+  onPrimary: '#09251B',
+  onBrand: '#09251B',
+  primarySoft: '#193A2E',
+  brandSoft: '#193A2E',
 
   late: '#FB7185',
   danger: '#FB7185',
@@ -148,12 +148,12 @@ const dark: Palette = {
   warn: '#FBBF24',
   done: '#34D399',
   success: '#34D399',
-  info: '#60A5FA',
-  gold: '#FACC15',
+  info: '#5BC3CF',
+  gold: '#F3C85D',
 
   syncOk: '#34D399',
   syncWait: '#FBBF24',
-  syncOff: '#6F83A1',
+  syncOff: '#789385',
 };
 
 export function palette(mode: ColorMode): Palette {
@@ -194,24 +194,24 @@ export const motion = {
 
 /** Diagonal brand gradient used on headers, the big button and the splash. */
 export const gradients = {
-  brand: ['#4F46E5', '#7C3AED', '#06B6D4'],
-  violet: ['#7C3AED', '#C026D3'],
-  warm: ['#FB7185', '#F59E0B'],
-  fresh: ['#16A34A', '#0EA5E9'],
-  calm: ['#06B6D4', '#4F46E5'],
-  ember: ['#F97316', '#EF4444'],
-  gold: ['#EAB308', '#F97316'],
+  brand: ['#087F66', '#139B79', '#25AFA5'],
+  violet: ['#D85F48', '#E6AD36'],
+  warm: ['#E76D54', '#F2B84D'],
+  fresh: ['#158B65', '#168B9B'],
+  calm: ['#167E8A', '#139B79'],
+  ember: ['#F08B45', '#D94F45'],
+  gold: ['#D99A24', '#E76D54'],
 } as const;
 
 /** Bright accents for celebration + the assistant mascot. */
 export const accents = {
-  grape: '#7C3AED',
-  bubble: '#06B6D4',
-  lime: '#84CC16',
-  mango: '#F59E0B',
-  coral: '#FB7185',
-  mint: '#34D399',
-  sky: '#38BDF8',
+  grape: '#B65387',
+  bubble: '#20A9A0',
+  lime: '#B8D94D',
+  mango: '#F2B84D',
+  coral: '#E76D54',
+  mint: '#55D6AB',
+  sky: '#4D9DB6',
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -307,6 +307,9 @@ export const fr = {
     cmdEmergency: 'Appareils du service Urgences',
     cmdScan: 'Scanner un papier',
     cmdDevice: 'Ouvrir l\u2019appareil INV-0402',
+    cmdSend: 'M’aider à envoyer un appareil',
+    cmdReturn: 'M’aider à enregistrer un retour',
+    openBilling: 'Ouvrir la facturation OpenAI',
     voiceOff: 'Désactivé dans les réglages',
   },
   settings: {

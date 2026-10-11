@@ -3,7 +3,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -21,7 +21,7 @@ import { Screen } from '@/components/Screen';
 import { AppText, Button, Card, Display, Icon, IconButton, Row, Spacer } from '@/components/ui';
 import { useT } from '@/i18n';
 import type { RootStackParamList } from '@/navigation/types';
-import { askAssistant, type AssistantAction, type AssistantContext, type ChatTurn } from '@/services/ai';
+import { askAssistant, type AssistantAction, type AssistantContext, type AssistantReply, type ChatTurn } from '@/services/ai';
 import { haptic } from '@/services/feedback';
 import { speak, startListening, stopListening, useLiveSpeech } from '@/services/speech';
 import { useSettings } from '@/store/settings';
@@ -37,6 +37,7 @@ interface Msg {
   text: string;
   action?: AssistantAction;
   needsConfirm?: boolean;
+  error?: AssistantReply['error'];
 }
 
 let seq = 0;
@@ -90,6 +91,7 @@ export function AssistantScreen() {
   const nav = useNavigation<Nav>();
   const today = useWork((s) => s.today);
   const devices = useWork((s) => s.devices);
+  const companies = useWork((s) => s.companies);
   const aiEnabled = useSettings((s) => s.aiEnabled);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -107,8 +109,16 @@ export function AssistantScreen() {
       late: today.late.map((d) => ({ inventory_no: d.inventory_no, type: d.type, department: d.department, days_late: d.days_late, company: d.trip_company_name })),
       critical: today.critical.map((d) => ({ inventory_no: d.inventory_no, type: d.type, department: d.department, days_late: d.days_late, company: d.trip_company_name })),
       departments: Array.from(new Set(devices.map((d) => d.department).filter(Boolean))),
+      devices: devices.slice(0, 60).map((d) => ({
+        inventory_no: d.inventory_no,
+        type: d.type,
+        department: d.department,
+        status: d.status,
+        company: d.trip_company_name,
+      })),
+      companies: companies.slice(0, 40).map((c) => ({ id: c.id, name: c.name })),
     }),
-    [today, devices],
+    [today, devices, companies],
   );
 
   const micPulse = useSharedValue(0);
@@ -137,10 +147,38 @@ export function AssistantScreen() {
   });
 
   function execute(action: AssistantAction) {
+    const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
     if (action.kind === 'open_device') {
       const d = devices.find((x) => x.inventory_no.toLowerCase() === action.inventory_no.toLowerCase());
       if (d) nav.navigate('Device', { id: d.id });
       else nav.navigate('Tabs', { screen: 'Devices' });
+      return;
+    }
+    if (action.kind === 'open_company') {
+      const company = companies.find((c) => normalize(c.name) === normalize(action.company_name));
+      if (company) nav.navigate('Company', { id: company.id });
+      else nav.navigate('Tabs', { screen: 'Companies' });
+      return;
+    }
+    if (action.kind === 'start_send') {
+      const d = devices.find((x) => x.inventory_no.toLowerCase() === action.inventory_no.toLowerCase());
+      if (!d || d.status === 'at_company' || d.status === 'retired') {
+        nav.navigate('Tabs', { screen: 'Devices' });
+        return;
+      }
+      const company = action.company_name
+        ? companies.find((c) => normalize(c.name) === normalize(action.company_name!))
+        : undefined;
+      nav.navigate('Send', { deviceIds: [d.id], ...(company ? { companyId: company.id } : {}) });
+      return;
+    }
+    if (action.kind === 'start_return') {
+      const d = devices.find((x) => x.inventory_no.toLowerCase() === action.inventory_no.toLowerCase());
+      if (!d || d.status !== 'at_company' || !d.trip_id) {
+        nav.navigate('Tabs', { screen: 'Devices' });
+        return;
+      }
+      nav.navigate('Return', { deviceId: d.id, tripId: d.trip_id });
       return;
     }
     if (action.kind === 'route') {
@@ -148,7 +186,12 @@ export function AssistantScreen() {
       else if (action.route === 'Board') nav.navigate('Board');
       else if (action.route === 'Today') nav.navigate('Tabs', { screen: 'Today' });
       else if (action.route === 'Devices') nav.navigate('Tabs', { screen: 'Devices' });
-      else nav.navigate('Tabs', { screen: 'Papers' });
+      else if (action.route === 'Companies') nav.navigate('Tabs', { screen: 'Companies' });
+      else if (action.route === 'Papers') nav.navigate('Tabs', { screen: 'Papers' });
+      else if (action.route === 'Settings') nav.navigate('Settings');
+      else if (action.route === 'ImportCsv') nav.navigate('ImportCsv');
+      else if (action.route === 'About') nav.navigate('About');
+      else nav.navigate('Send');
     }
   }
 
@@ -164,10 +207,10 @@ export function AssistantScreen() {
     ];
     setThinking(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-    const reply = await askAssistant(clean, language, ctx, history);
+    const reply = await askAssistant(clean, language, ctx, history, aiEnabled);
     setThinking(false);
     setLastReply(reply.text);
-    setMessages((m) => [...m, { id: nextId(), role: 'assistant', text: reply.text, action: reply.action, needsConfirm: reply.needsConfirm }]);
+    setMessages((m) => [...m, { id: nextId(), role: 'assistant', text: reply.text, action: reply.action, needsConfirm: reply.needsConfirm, error: reply.error }]);
     speak(reply.text, language);
     if (reply.action.kind !== 'none' && reply.needsConfirm) setConfirm(reply.action);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
@@ -187,7 +230,24 @@ export function AssistantScreen() {
 
   const actionLabel = (a: AssistantAction): string => {
     if (a.kind === 'open_device') return a.inventory_no;
-    if (a.kind === 'route') return a.route;
+    if (a.kind === 'open_company') return a.company_name;
+    if (a.kind === 'start_send') return `${t('send.title')} · ${a.inventory_no}`;
+    if (a.kind === 'start_return') return `${t('returnFlow.title')} · ${a.inventory_no}`;
+    if (a.kind === 'route') {
+      const labels: Record<typeof a.route, string> = {
+        Scan: 'scan.title',
+        Board: 'board.title',
+        Today: 'tabs.today',
+        Devices: 'tabs.devices',
+        Companies: 'tabs.companies',
+        Papers: 'tabs.papers',
+        Settings: 'settings.title',
+        ImportCsv: 'importFlow.title',
+        About: 'about.title',
+        Send: 'send.title',
+      };
+      return t(labels[a.route]);
+    }
     return '';
   };
 
@@ -196,6 +256,7 @@ export function AssistantScreen() {
       <View style={{ flex: 1 }}>
         <Gradient colors={gradients.calm} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <Row style={{ gap: 12, flex: 1 }}>
+            <IconButton name="close" label={t('common.close')} color="#fff" onPress={() => nav.goBack()} />
             <Mascot size={54} />
             <View style={{ flex: 1 }}>
               <Display size="title" weight="800" color="#fff">
@@ -234,6 +295,19 @@ export function AssistantScreen() {
                       <AppText size="body" style={{ lineHeight: 22 }}>
                         {m.text}
                       </AppText>
+                      {m.error === 'quota_exceeded' ? (
+                        <Pressable
+                          accessibilityRole="link"
+                          accessibilityLabel={t('assistant.openBilling')}
+                          onPress={() => Linking.openURL('https://platform.openai.com/settings/organization/billing/')}
+                          style={[styles.billingLink, { backgroundColor: theme.colors.primarySoft }]}
+                        >
+                          <Icon name="open-in-new" size={16} color={theme.colors.primary} />
+                          <AppText size="small" weight="700" color={theme.colors.primary}>
+                            {t('assistant.openBilling')}
+                          </AppText>
+                        </Pressable>
+                      ) : null}
                       {m.action && m.action.kind !== 'none' ? (
                         <>
                           <Spacer size="sm" />
@@ -270,7 +344,7 @@ export function AssistantScreen() {
 
         {/* Offline command chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: theme.spacing.lg }}>
-          {[t('assistant.cmdLate'), t('assistant.cmdEmergency'), t('assistant.cmdScan'), t('assistant.cmdDevice')].map((c) => (
+          {[t('assistant.cmdLate'), t('assistant.cmdEmergency'), t('assistant.cmdScan'), t('assistant.cmdDevice'), t('assistant.cmdSend'), t('assistant.cmdReturn')].map((c) => (
             <PressScale key={c} onPress={() => send(c)} scaleTo={0.94}>
               <View style={[styles.chip, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
                 <Icon name="lightning-bolt-outline" size={15} color={theme.colors.primary} />
@@ -364,6 +438,7 @@ const styles = StyleSheet.create({
   userBubble: { paddingHorizontal: 14, paddingVertical: 10, borderBottomRightRadius: 6 },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
   actionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 32, alignSelf: 'flex-start' },
+  billingLink: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 7, minHeight: 40, borderRadius: 12, paddingHorizontal: 11, marginTop: 10 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 40 },
   micWrap: { alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
   micHalo: { position: 'absolute', width: 72, height: 72, borderRadius: 36 },

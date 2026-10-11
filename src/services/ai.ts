@@ -18,6 +18,8 @@ export interface AssistantContext {
   late: AiDeviceRef[];
   critical: AiDeviceRef[];
   departments: string[];
+  devices?: { inventory_no: string; type: string; department: string; status: string; company?: string | null }[];
+  companies?: { id: string; name: string }[];
 }
 
 /** One turn of the conversation, used to give the server some memory. */
@@ -29,7 +31,10 @@ export interface ChatTurn {
 /** Things the assistant is allowed to do. It still asks first. */
 export type AssistantAction =
   | { kind: 'open_device'; inventory_no: string }
-  | { kind: 'route'; route: 'Scan' | 'Board' | 'Today' | 'Devices' | 'Papers'; params?: Record<string, unknown> }
+  | { kind: 'open_company'; company_name: string }
+  | { kind: 'start_send'; inventory_no: string; company_name?: string }
+  | { kind: 'start_return'; inventory_no: string }
+  | { kind: 'route'; route: 'Scan' | 'Board' | 'Today' | 'Devices' | 'Companies' | 'Papers' | 'Settings' | 'ImportCsv' | 'About' | 'Send' }
   | { kind: 'none' };
 
 export interface AssistantReply {
@@ -37,6 +42,7 @@ export interface AssistantReply {
   action: AssistantAction;
   needsConfirm: boolean;
   source: 'offline' | 'server' | 'none';
+  error?: 'quota_exceeded' | 'invalid_api_key' | 'rate_limited' | 'upstream_error' | 'disabled';
 }
 
 const NONE: AssistantAction = { kind: 'none' };
@@ -57,12 +63,37 @@ export function offlineReply(text: string, language: Language, ctx: AssistantCon
   const q = text.trim().toLowerCase();
   if (!q) return null;
 
-  // Open a specific device by its inventory number.
   const inv = /inv[-\s]?(\d{2,})/i.exec(text);
+  const inventoryNo = inv ? inv[0].toUpperCase().replace(/\s/g, '-') : '';
+  const wantsSend = /(send|ship|envoyer|envoie|exp[eé]dier|إرسال|ارسل|أرسل|ابعث)/i.test(q);
+  const wantsReturn = /(return|returned|bring back|mark.+back|retour|rendre|ramener|إرجاع|ارجاع|رجّع|رجع)/i.test(q);
+
+  if (wantsSend) {
+    return {
+      text: inventoryNo
+        ? language === 'ar' ? `سأجهّز ${inventoryNo} للإرسال. راجع بيانات الإصلاح وأكّد الحفظ في النموذج.` : language === 'en' ? `I’ll prepare ${inventoryNo} for sending. Review the repair details and confirm the save in the form.` : `Je prépare ${inventoryNo} pour l’envoi. Vérifiez les détails et confirmez l’enregistrement dans le formulaire.`
+        : language === 'ar' ? 'ما رقم الجرد للجهاز الذي تريد إرساله؟' : language === 'en' ? 'What is the inventory number of the device to send?' : 'Quel est le numéro d’inventaire de l’appareil à envoyer ?',
+      action: inventoryNo ? { kind: 'start_send', inventory_no: inventoryNo } : NONE,
+      needsConfirm: !!inventoryNo,
+      source: 'offline',
+    };
+  }
+
+  if (wantsReturn) {
+    return {
+      text: inventoryNo
+        ? language === 'ar' ? `سأجهّز تسجيل عودة ${inventoryNo}. راجع نتيجة الإصلاح وأكّد الحفظ في النموذج.` : language === 'en' ? `I’ll prepare the return for ${inventoryNo}. Review the repair result and confirm the save in the form.` : `Je prépare le retour de ${inventoryNo}. Vérifiez le résultat et confirmez l’enregistrement dans le formulaire.`
+        : language === 'ar' ? 'ما رقم الجرد للجهاز الذي عاد من الإصلاح؟' : language === 'en' ? 'What is the inventory number of the returned device?' : 'Quel est le numéro d’inventaire de l’appareil revenu de réparation ?',
+      action: inventoryNo ? { kind: 'start_return', inventory_no: inventoryNo } : NONE,
+      needsConfirm: !!inventoryNo,
+      source: 'offline',
+    };
+  }
+
   if (inv) {
     return {
-      text: `${inv[0].toUpperCase()}`,
-      action: { kind: 'open_device', inventory_no: inv[0].toUpperCase().replace(/\s/g, '-') },
+      text: inventoryNo,
+      action: { kind: 'open_device', inventory_no: inventoryNo },
       needsConfirm: true,
       source: 'offline',
     };
@@ -78,6 +109,36 @@ export function offlineReply(text: string, language: Language, ctx: AssistantCon
     return {
       text: language === 'ar' ? 'فتح الماسح. هل تريد المسح الآن؟' : language === 'en' ? 'Opening the scanner. Scan now?' : 'J\u2019ouvre le scanner. Scanner maintenant ?',
       action: { kind: 'route', route: 'Scan' },
+      needsConfirm: true,
+      source: 'offline',
+    };
+  }
+
+  const normalized = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const company = ctx.companies?.find((c) => normalized(q).includes(normalized(c.name)));
+  if (company) {
+    return {
+      text: language === 'ar' ? `سأفتح ملف ${company.name}.` : language === 'en' ? `I’ll open ${company.name}.` : `J’ouvre le dossier de ${company.name}.`,
+      action: { kind: 'open_company', company_name: company.name },
+      needsConfirm: true,
+      source: 'offline',
+    };
+  }
+
+  const routes: { pattern: RegExp; route: Extract<AssistantAction, { kind: 'route' }>['route']; label: { fr: string; en: string; ar: string } }[] = [
+    { pattern: /(\bsettings\b|\bpreferences\b|réglages|paramètres|الإعدادات|اعدادات)/, route: 'Settings', label: { fr: 'les réglages', en: 'Settings', ar: 'الإعدادات' } },
+    { pattern: /(\bimport\b|csv|استيراد)/, route: 'ImportCsv', label: { fr: 'l’import CSV', en: 'CSV import', ar: 'استيراد CSV' } },
+    { pattern: /(\bcompanies\b|\bcompany\b|sociétés|société|entreprise|الشركات|شركة)/, route: 'Companies', label: { fr: 'les sociétés', en: 'Companies', ar: 'الشركات' } },
+    { pattern: /(\bpapers\b|\bdocuments\b|papiers|document|وثائق|مستندات)/, route: 'Papers', label: { fr: 'les documents', en: 'Papers', ar: 'الوثائق' } },
+    { pattern: /(\bdevices\b|\bdevice list\b|appareils|équipements|الأجهزة)/, route: 'Devices', label: { fr: 'les appareils', en: 'Devices', ar: 'الأجهزة' } },
+    { pattern: /(\bboard\b|tableau|kanban|لوحة)/, route: 'Board', label: { fr: 'le tableau', en: 'the board', ar: 'اللوحة' } },
+    { pattern: /(\btoday\b|\bhome\b|accueil|aujourd'hui|اليوم|الرئيسية)/, route: 'Today', label: { fr: 'l’accueil', en: 'Today', ar: 'الرئيسية' } },
+  ];
+  const destination = routes.find((entry) => entry.pattern.test(normalized(q)));
+  if (destination) {
+    return {
+      text: language === 'ar' ? `سأفتح ${destination.label.ar}.` : language === 'en' ? `I’ll open ${destination.label.en}.` : `J’ouvre ${destination.label.fr}.`,
+      action: { kind: 'route', route: destination.route },
       needsConfirm: true,
       source: 'offline',
     };
@@ -142,10 +203,23 @@ function normalizeAction(raw: unknown): AssistantAction {
     const inv = String(a.inventory_no ?? a.inventory ?? '').toUpperCase();
     return inv ? { kind: 'open_device', inventory_no: inv } : NONE;
   }
+  if (type === 'open_company') {
+    const name = String(a.company_name ?? '').trim();
+    return name ? { kind: 'open_company', company_name: name } : NONE;
+  }
+  if (type === 'start_send') {
+    const inv = String(a.inventory_no ?? a.inventory ?? '').toUpperCase();
+    const companyName = String(a.company_name ?? '').trim();
+    return inv ? { kind: 'start_send', inventory_no: inv, ...(companyName ? { company_name: companyName } : {}) } : NONE;
+  }
+  if (type === 'start_return') {
+    const inv = String(a.inventory_no ?? a.inventory ?? '').toUpperCase();
+    return inv ? { kind: 'start_return', inventory_no: inv } : NONE;
+  }
   if (type === 'route') {
     const route = String(a.route ?? '');
-    if (['Scan', 'Board', 'Today', 'Devices', 'Papers'].includes(route)) {
-      return { kind: 'route', route: route as 'Scan' | 'Board' | 'Today' | 'Devices' | 'Papers', params: (a.params as Record<string, unknown>) ?? undefined };
+    if (['Scan', 'Board', 'Today', 'Devices', 'Companies', 'Papers', 'Settings', 'ImportCsv', 'About', 'Send'].includes(route)) {
+      return { kind: 'route', route: route as Extract<AssistantAction, { kind: 'route' }>['route'] };
     }
   }
   return NONE;
@@ -160,16 +234,28 @@ export async function askAssistant(
   language: Language,
   ctx: AssistantContext,
   history: ChatTurn[] = [],
+  allowOnline = true,
 ): Promise<AssistantReply> {
   const local = offlineReply(text, language, ctx);
   if (local) return local;
 
-  if (!isAiConfigured()) {
+  if (!allowOnline) {
     return {
-      text: language === 'ar' ? 'أحتاج إلى الإنترنت لهذا.' : language === 'en' ? 'I need internet for that.' : 'J\u2019ai besoin d\u2019internet pour cela.',
+      text: language === 'ar' ? 'المساعد عبر الإنترنت متوقف في الإعدادات. تظل الأوامر المحلية متاحة.' : language === 'en' ? 'Online AI is turned off in Settings. Local commands are still available.' : 'L’assistant en ligne est désactivé dans les réglages. Les commandes locales restent disponibles.',
       action: NONE,
       needsConfirm: false,
       source: 'none',
+      error: 'disabled',
+    };
+  }
+
+  if (!isAiConfigured()) {
+    return {
+      text: language === 'ar' ? 'المساعد عبر الإنترنت غير مُهيّأ. الأوامر المحلية تظل متاحة.' : language === 'en' ? 'Online AI is not configured. Local commands are still available.' : 'L’assistant en ligne n’est pas configuré. Les commandes locales restent disponibles.',
+      action: NONE,
+      needsConfirm: false,
+      source: 'none',
+      error: 'upstream_error',
     };
   }
 
@@ -182,18 +268,47 @@ export async function askAssistant(
     })) as Record<string, unknown>;
     const replyText = String(res.reply ?? res.text ?? res.answer ?? '').trim();
     if (!replyText) throw new Error('empty');
+    const action = normalizeAction(res.action);
     return {
       text: replyText,
-      action: normalizeAction(res.action),
-      needsConfirm: !!res.needsConfirm,
+      action,
+      needsConfirm: action.kind !== 'none',
       source: 'server',
     };
-  } catch {
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'upstream_error';
+    const knownCode: Exclude<NonNullable<AssistantReply['error']>, 'disabled'> =
+      ['quota_exceeded', 'invalid_api_key', 'rate_limited'].includes(code)
+        ? code as Exclude<NonNullable<AssistantReply['error']>, 'disabled'>
+        : 'upstream_error';
+    const messages = {
+      quota_exceeded: {
+        fr: 'Le compte OpenAI n’a plus de crédits API. Ajoutez des crédits dans la facturation OpenAI ; les commandes locales restent disponibles.',
+        en: 'The OpenAI account has no API credits remaining. Add API credits in OpenAI billing; local commands still work.',
+        ar: 'نفدت أرصدة API في حساب OpenAI. أضف رصيداً من إعدادات الفوترة؛ تظل الأوامر المحلية متاحة.',
+      },
+      invalid_api_key: {
+        fr: 'La clé OpenAI est refusée. Vérifiez OPENAI_API_KEY dans sit-hub/.env.local puis redémarrez le proxy.',
+        en: 'OpenAI rejected the key. Check OPENAI_API_KEY in sit-hub/.env.local, then restart the proxy.',
+        ar: 'رفض OpenAI المفتاح. تحقّق من OPENAI_API_KEY في sit-hub/.env.local ثم أعد تشغيل البروكسي.',
+      },
+      rate_limited: {
+        fr: 'OpenAI est momentanément limité. Réessayez dans un instant.',
+        en: 'OpenAI is rate limiting requests. Try again in a moment.',
+        ar: 'طلبات OpenAI محدودة مؤقتاً. حاول مجدداً بعد قليل.',
+      },
+      upstream_error: {
+        fr: 'Je ne peux pas joindre le service IA pour le moment. Les commandes locales restent disponibles.',
+        en: 'The AI service is unavailable right now. Local commands are still available.',
+        ar: 'خدمة الذكاء الاصطناعي غير متاحة الآن. تظل الأوامر المحلية متاحة.',
+      },
+    };
     return {
-      text: language === 'ar' ? 'تعذّر الاتصال. حاول لاحقاً.' : language === 'en' ? 'I could not reach the server. Try later.' : 'Je n\u2019ai pas pu joindre le serveur. Réessayez plus tard.',
+      text: messages[knownCode][language],
       action: NONE,
       needsConfirm: false,
       source: 'none',
+      error: knownCode,
     };
   }
 }

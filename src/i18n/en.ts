@@ -307,6 +307,9 @@ export const en: TranslationSchema = {
     cmdEmergency: 'Emergency devices',
     cmdScan: 'Scan a paper',
     cmdDevice: 'Open device INV-0402',
+    cmdSend: 'Help me send a device',
+    cmdReturn: 'Help me record a return',
+    openBilling: 'Open OpenAI billing',
     voiceOff: 'Turned off in Settings',
   },
   settings: {

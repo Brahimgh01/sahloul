@@ -53,7 +53,7 @@ export function SendScreen() {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState<string[]>(params?.deviceIds ?? []);
   const [search, setSearch] = useState('');
-  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string | null>(params?.companyId ?? null);
   const [problem, setProblem] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [extraDays, setExtraDays] = useState(0);

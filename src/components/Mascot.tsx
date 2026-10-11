@@ -15,7 +15,7 @@ import Svg, { Circle, G, Line, Path, Rect } from 'react-native-svg';
 export function Mascot({
   size = 96,
   mood = 'happy',
-  color = '#4F46E5',
+  color = '#087F66',
   animate = true,
 }: {
   size?: number;

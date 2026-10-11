@@ -5,7 +5,7 @@ import Svg, { Circle, Line, Path } from 'react-native-svg';
 export function Logo({
   size = 64,
   color = '#FFFFFF',
-  accent = '#06B6D4',
+  accent = '#E6AD36',
   center = '#FFFFFF',
   check = '#4338CA',
   dots = ['#22C55E', '#F59E0B', '#EF4444'],

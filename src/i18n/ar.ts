@@ -307,6 +307,9 @@ export const ar: TranslationSchema = {
     cmdEmergency: 'أجهزة قسم الطوارئ',
     cmdScan: 'امسح ورقة',
     cmdDevice: 'افتح الجهاز INV-0402',
+    cmdSend: 'ساعدني في إرسال جهاز',
+    cmdReturn: 'ساعدني في تسجيل عودة جهاز',
+    openBilling: 'فتح فوترة OpenAI',
     voiceOff: 'معطّل في الإعدادات',
   },
   settings: {

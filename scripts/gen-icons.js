@@ -98,9 +98,9 @@ function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
 
-const INDIGO = [79, 70, 229];
-const CYAN = [6, 182, 212];
-const VIOLET = [124, 58, 237];
+const JADE = [8, 127, 102];
+const CORAL = [216, 95, 72];
+const TEAL = [37, 175, 165];
 
 // The hub mark in normalised 0..1 space. `scale` shrinks it around the centre.
 function drawMark(put, size, scale, opts = {}) {
@@ -173,7 +173,7 @@ function drawMark(put, size, scale, opts = {}) {
       d = Math.min(d, sdSegment(x, y, cx - S * 0.085, cy + S * 0.005, cx - S * 0.02, cy + S * 0.07, stroke * 1.05));
       d = Math.min(d, sdSegment(x, y, cx - S * 0.02, cy + S * 0.07, cx + S * 0.095, cy - S * 0.075, stroke * 1.05));
       const a = cov(d);
-      if (a > 0) put(x, y, 30, 41, 90, Math.round(a * 255));
+      if (a > 0) put(x, y, 18, 43, 35, Math.round(a * 255));
     }
   }
 }
@@ -182,7 +182,7 @@ function gradientSquare(put, size) {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const t = clamp((x * 0.35 + y * 0.65) / size, 0, 1);
-      let c = t < 0.55 ? mix(INDIGO, VIOLET, t / 0.55) : mix(VIOLET, CYAN, (t - 0.55) / 0.45);
+      let c = t < 0.55 ? mix(JADE, CORAL, t / 0.55) : mix(CORAL, TEAL, (t - 0.55) / 0.45);
       // soft top-left highlight
       const g = Math.max(0, 1 - Math.hypot(x - size * 0.28, y - size * 0.22) / (size * 0.7));
       c = mix(c, [255, 255, 255], g * 0.18);
