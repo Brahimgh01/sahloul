@@ -1,8 +1,19 @@
 // Unique IDs made on the phone, so two phones never clash.
 import * as Application from 'expo-application';
 
+import { isWeb } from '@/lib/runtime';
+
 // A short random device tag, stable per install (best effort).
-const deviceTag = (Application.getAndroidId?.() ?? 'dev').slice(-4);
+function androidTag(): string {
+  if (isWeb) return 'web';
+  try {
+    return Application.getAndroidId?.() ?? 'dev';
+  } catch {
+    return 'dev';
+  }
+}
+
+const deviceTag = (androidTag() || 'dev').slice(-4) || 'dev';
 
 export function uuid(): string {
   const t = Date.now().toString(36);

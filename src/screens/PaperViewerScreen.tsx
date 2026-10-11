@@ -1,9 +1,6 @@
 // One paper: what it is, where it is stored, the text we read, and actions (spec 5.4).
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
@@ -18,6 +15,7 @@ import { formatTND } from '@/lib/money';
 import { PAPER_TYPE_META } from '@/lib/status';
 import type { RootStackParamList } from '@/navigation/types';
 import { success } from '@/services/feedback';
+import { exists, printFile, shareFile } from '@/services/papers';
 import { useWork } from '@/store/work';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { PaperType } from '@/types';
@@ -71,11 +69,9 @@ export function PaperViewerScreen() {
 
   const share = async () => {
     try {
-      if (paper.phone_file_path && (await FileSystem.getInfoAsync(paper.phone_file_path)).exists) {
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(paper.phone_file_path, { mimeType: isImage ? 'image/*' : 'application/pdf' });
-          return;
-        }
+      if (paper.phone_file_path && (await exists(paper.phone_file_path))) {
+        const ok = await shareFile(paper.phone_file_path, isImage ? 'image/*' : 'application/pdf');
+        if (ok) return;
       }
       // Nothing to share yet (e.g. demo rows): share the text we read.
       await Share.share({ message: paper.text || paper.file_name });
@@ -86,8 +82,8 @@ export function PaperViewerScreen() {
 
   const print = async () => {
     try {
-      if (paper.phone_file_path && (await FileSystem.getInfoAsync(paper.phone_file_path)).exists) {
-        await Print.printAsync({ uri: paper.phone_file_path });
+      if (paper.phone_file_path && (await exists(paper.phone_file_path))) {
+        await printFile(paper.phone_file_path);
       }
     } catch {
       /* user closed */

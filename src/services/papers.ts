@@ -1,6 +1,7 @@
 // Files for papers: saved on the phone first, uploaded later (spec 9).
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 export function papersDir(): string {
   return `${FileSystem.documentDirectory}papers/`;
@@ -43,6 +44,46 @@ export async function deleteFile(path: string): Promise<void> {
     await FileSystem.deleteAsync(path, { idempotent: true });
   } catch {
     /* ignore */
+  }
+}
+
+/** Read a text file (used by the CSV import). */
+export async function readTextFile(uri: string): Promise<string> {
+  try {
+    return await FileSystem.readAsStringAsync(uri);
+  } catch {
+    return '';
+  }
+}
+
+/** Does a file exist on the phone? */
+export async function exists(path: string): Promise<boolean> {
+  try {
+    return (await FileSystem.getInfoAsync(path)).exists;
+  } catch {
+    return false;
+  }
+}
+
+/** Share a file with another app. Returns false when sharing is unavailable. */
+export async function shareFile(path: string, mime: string): Promise<boolean> {
+  try {
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(path, { mimeType: mime });
+      return true;
+    }
+  } catch {
+    /* user cancelled */
+  }
+  return false;
+}
+
+/** Open the system print dialog for a stored file. */
+export async function printFile(path: string): Promise<void> {
+  try {
+    await Print.printAsync({ uri: path });
+  } catch {
+    /* user closed */
   }
 }
 

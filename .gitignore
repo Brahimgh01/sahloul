@@ -22,3 +22,8 @@ expo-env.d.ts
 npm-debug.*
 *.log
 .DS_Store
+
+# secrets / local env (never commit the AI key)
+.env
+.env.local
+.env.*.local

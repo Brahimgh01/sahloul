@@ -5,6 +5,16 @@ import { Platform } from 'react-native';
 
 import { useSettings, type AlertKind } from '@/store/settings';
 
+// Show alerts even when the app is open.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 // Channel id + sound file per alert type.
 const CHANNELS: Record<AlertKind, { id: string; name: string; desc: string; sound: string }> = {
   device_late: { id: 'device_late', name: 'Device late', desc: 'A device passed its return date', sound: 'device_late.wav' },

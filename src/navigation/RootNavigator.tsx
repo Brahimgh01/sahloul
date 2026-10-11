@@ -22,6 +22,7 @@ import { ScanScreen } from '@/screens/ScanScreen';
 import { SendScreen } from '@/screens/SendScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { TodayScreen } from '@/screens/TodayScreen';
+import { useT } from '@/i18n';
 import { useTheme } from '@/theme/ThemeProvider';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -40,6 +41,7 @@ function Tabs() {
 
 export function RootNavigator() {
   const theme = useTheme();
+  const { t } = useT();
 
   const navTheme: NavTheme = {
     ...DefaultTheme,
@@ -48,9 +50,9 @@ export function RootNavigator() {
       ...DefaultTheme.colors,
       primary: theme.colors.primary,
       background: theme.colors.bg,
-      card: theme.colors.card,
+      card: theme.colors.surface,
       text: theme.colors.text,
-      border: theme.colors.border,
+      border: theme.colors.line,
       notification: theme.colors.late,
     },
   };
@@ -59,27 +61,28 @@ export function RootNavigator() {
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: theme.colors.bg },
+          headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
           headerTitleAlign: 'center',
           headerShadowVisible: false,
+          headerBackTitle: '',
           contentStyle: { backgroundColor: theme.colors.bg },
           headerTitleStyle: { fontWeight: '700' },
         }}
       >
         <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-        <Stack.Screen name="Device" component={DeviceScreen} />
-        <Stack.Screen name="Company" component={CompanyScreen} />
-        <Stack.Screen name="Send" component={SendScreen} />
-        <Stack.Screen name="Return" component={ReturnScreen} />
-        <Stack.Screen name="Scan" component={ScanScreen} />
-        <Stack.Screen name="PaperCheck" component={PaperCheckScreen} />
-        <Stack.Screen name="PaperViewer" component={PaperViewerScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="ImportCsv" component={ImportCsvScreen} />
-        <Stack.Screen name="About" component={AboutScreen} />
-        <Stack.Screen name="Assistant" component={AssistantScreen} options={{ presentation: 'modal' }} />
-        <Stack.Screen name="Board" component={BoardScreen} />
+        <Stack.Screen name="Device" component={DeviceScreen} options={{ title: t('devices.title') }} />
+        <Stack.Screen name="Company" component={CompanyScreen} options={{ title: t('companies.title') }} />
+        <Stack.Screen name="Send" component={SendScreen} options={{ title: t('send.title') }} />
+        <Stack.Screen name="Return" component={ReturnScreen} options={{ title: t('returnFlow.title') }} />
+        <Stack.Screen name="Scan" component={ScanScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="PaperCheck" component={PaperCheckScreen} options={{ title: t('papers.title') }} />
+        <Stack.Screen name="PaperViewer" component={PaperViewerScreen} options={{ title: t('papers.title') }} />
+        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: t('settings.title') }} />
+        <Stack.Screen name="ImportCsv" component={ImportCsvScreen} options={{ title: t('importFlow.title') }} />
+        <Stack.Screen name="About" component={AboutScreen} options={{ title: t('about.title') }} />
+        <Stack.Screen name="Assistant" component={AssistantScreen} options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="Board" component={BoardScreen} options={{ title: t('board.title') }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -2,7 +2,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -12,6 +11,7 @@ import { useT } from '@/i18n';
 import type { RootStackParamList } from '@/navigation/types';
 import { commitImport, csvToDeviceRows, previewImport, type ImportPreview } from '@/services/csv';
 import { error, success } from '@/services/feedback';
+import { readTextFile } from '@/services/papers';
 import { useWork } from '@/store/work';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { CsvDeviceRow } from '@/types';
@@ -39,7 +39,7 @@ export function ImportCsvScreen() {
       });
       if (res.canceled || !res.assets?.[0]) return;
       setBusy(true);
-      const text = await FileSystem.readAsStringAsync(res.assets[0].uri);
+      const text = await readTextFile(res.assets[0].uri);
       const rows = csvToDeviceRows(text);
       const p = await previewImport(rows);
       setPreview(p);

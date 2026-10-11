@@ -3,7 +3,7 @@
 //  2. Offline -> a few simple commands that work with no internet.
 // It only ever talks about devices, companies and papers, and it always asks
 // before doing something (spec golden rule 6 / section 10).
-import { callAssistant, isConfigured } from '@/services/supabase';
+import { callAssistant, isAiConfigured } from '@/services/supabase';
 import type { Language } from '@/types';
 
 export interface AiDeviceRef {
@@ -18,6 +18,12 @@ export interface AssistantContext {
   late: AiDeviceRef[];
   critical: AiDeviceRef[];
   departments: string[];
+}
+
+/** One turn of the conversation, used to give the server some memory. */
+export interface ChatTurn {
+  role: 'user' | 'assistant';
+  text: string;
 }
 
 /** Things the assistant is allowed to do. It still asks first. */
@@ -153,11 +159,12 @@ export async function askAssistant(
   text: string,
   language: Language,
   ctx: AssistantContext,
+  history: ChatTurn[] = [],
 ): Promise<AssistantReply> {
   const local = offlineReply(text, language, ctx);
   if (local) return local;
 
-  if (!isConfigured()) {
+  if (!isAiConfigured()) {
     return {
       text: language === 'ar' ? 'أحتاج إلى الإنترنت لهذا.' : language === 'en' ? 'I need internet for that.' : 'J\u2019ai besoin d\u2019internet pour cela.',
       action: NONE,
@@ -167,7 +174,12 @@ export async function askAssistant(
   }
 
   try {
-    const res = (await callAssistant({ text, language, context: ctx })) as Record<string, unknown>;
+    const res = (await callAssistant({
+      text,
+      language,
+      context: ctx,
+      history: history.slice(-8),
+    })) as Record<string, unknown>;
     const replyText = String(res.reply ?? res.text ?? res.answer ?? '').trim();
     if (!replyText) throw new Error('empty');
     return {

@@ -73,13 +73,17 @@ src/
   lib/                      dates, money, status helpers
   services/                 supabase, sync, notifications, speech, pdf, papers,
                             ocr, scanner, csv, ai, reminders, feedback
-  components/               shared UI (Button, Card, Icon, ...) + SwipeRow
+  components/               shared UI (Button, Card, Icon, ...) + SwipeRow,
+                            Gradient, Logo, Motion, Confetti, ProgressBar,
+                            StatTile, Mascot, AnimatedSplash
   navigation/               tabs + stack
   screens/                  the 16 screens
+server/ai-proxy.mjs         local stand-in for the AI function (browser preview)
 supabase/
   schema.sql                tables + RLS + storage bucket (mirror of the phone)
   functions/assistant/      AI edge function (key stays on the server)
-scripts/gen-assets.js       regenerate placeholder icons + chimes
+scripts/gen-assets.js       regenerate placeholder chimes
+scripts/gen-icons.js        draw the app icon / adaptive icon / splash
 ```
 
 The classmate coffee page stays at the workspace root (`index.html`) and is
@@ -108,6 +112,35 @@ assistant on:
 The AI key is **never** in the app — the phone only sends a short text summary
 of late/critical devices to the server function. The assistant always asks
 before it opens a screen or changes anything.
+
+### Try the real assistant in the browser (no phone needed)
+
+The browser preview can talk to the real OpenAI assistant through the little
+Node proxy in `server/ai-proxy.mjs` (it plays the part of the Supabase
+function, so the key still never enters the app bundle).
+
+1. Copy the example env file and add your key — **do not** paste the key into
+   any chat, and do not commit this file (it is git-ignored):
+   ```powershell
+   copy .env.example .env.local
+   # then edit .env.local and set OPENAI_API_KEY=sk-...
+   ```
+2. Start the proxy in one terminal:
+   ```powershell
+   npm run ai
+   ```
+   It prints `key: loaded ✓` when it can see the key.
+3. Start the web app in another terminal, pointing it at the proxy:
+   ```powershell
+   $env:EXPO_PUBLIC_AI_PROXY = "http://localhost:8787"
+   npm run web
+   ```
+   Without the proxy, the assistant still works for the built-in offline
+   commands ("en retard", "الطوارئ", "INV-0012", "scan").
+
+The same prompt and JSON contract live in both places:
+`supabase/functions/assistant/index.ts` (production) and
+`server/ai-proxy.mjs` (local preview).
 
 ### How sync behaves
 

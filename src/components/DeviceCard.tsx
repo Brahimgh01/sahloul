@@ -1,6 +1,14 @@
 // A device card used on Today and Devices. Swipe, tap and long-press (spec 5.1).
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { SwipeRow } from '@/components/SwipeRow';
 import { Tag } from '@/components/StatusChip';
@@ -8,6 +16,7 @@ import { AppText, Icon, type IconName } from '@/components/ui';
 import type { DeviceWithTrip } from '@/data/queries';
 import { useDirection, useT } from '@/i18n';
 import { deviceIcon } from '@/lib/status';
+import { cardShadow } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
 export function DeviceCard({
@@ -33,13 +42,41 @@ export function DeviceCard({
 
   const isLate = device.is_late;
   const isCritical = device.critical_department && device.status === 'at_company';
-  const accent = isLate ? theme.colors.late : isCritical ? theme.colors.critical : device.status === 'at_company' ? theme.colors.info : theme.colors.textMuted;
+  const isAtCompany = device.status === 'at_company';
+  const accent = isLate
+    ? theme.colors.late
+    : isCritical
+      ? theme.colors.critical
+      : isAtCompany
+        ? theme.colors.info
+        : device.status === 'ready_for_pickup'
+          ? theme.colors.due
+          : theme.colors.textMuted;
 
   const dayLabel = isLate
     ? t('today.daysLate', { count: device.days_late })
     : device.expected_return_date
       ? t('today.daysLeft', { count: Math.max(0, device.days_left) })
       : '';
+
+  // A gentle red halo that breathes on critical devices.
+  const glow = useSharedValue(0);
+  React.useEffect(() => {
+    if (isCritical && criticalPulse && !theme.reduceMotion) {
+      glow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 1100, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      glow.value = 0;
+    }
+  }, [isCritical, criticalPulse, theme.reduceMotion, glow]);
+
+  const glowStyle = useAnimatedStyle(() => ({ opacity: 0.12 + 0.55 * glow.value }));
 
   return (
     <SwipeRow
@@ -60,14 +97,21 @@ export function DeviceCard({
         accessibilityLabel={`${device.type} ${device.inventory_no}`}
         style={({ pressed }) => [
           styles.card,
+          cardShadow(theme.mode, 1),
           {
+            backgroundColor: theme.colors.card,
             borderColor: theme.colors.border,
-            borderLeftWidth: 5,
-            borderLeftColor: accent,
-            opacity: pressed ? 0.9 : 1,
+            transform: [{ scale: pressed ? 0.985 : 1 }],
           },
         ]}
       >
+        <View style={[styles.accent, { backgroundColor: accent }]} />
+        {isCritical ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.glow, { borderColor: theme.colors.critical }, glowStyle]}
+          />
+        ) : null}
         <View style={[styles.row, { flexDirection: dir.row }]}>
           <View style={[styles.iconBox, { backgroundColor: accent + '1A' }]}>
             <Icon name={deviceIcon(device.type) as IconName} size={26} color={accent} />
@@ -103,8 +147,25 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 14,
+    overflow: 'hidden',
   },
-  row: { alignItems: 'center', gap: 12 },
+  accent: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 5,
+  },
+  glow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    borderWidth: 2,
+  },
+  row: { alignItems: 'center', gap: 12, paddingLeft: 6 },
   iconBox: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   tags: { alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   right: { minWidth: 70, justifyContent: 'center' },

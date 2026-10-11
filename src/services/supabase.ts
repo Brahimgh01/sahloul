@@ -4,7 +4,9 @@
 // The AI key NEVER lives here - only the public anon key, and AI calls go
 // through a server function.
 import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
+
+import { isWeb } from '@/lib/runtime';
+import { getItem, removeItem, setItem } from '@/lib/secureStore';
 
 const TOKEN_KEY = 'sithub_access_token';
 
@@ -27,26 +29,40 @@ export function getConfig(): SupabaseConfig {
   };
 }
 
+/**
+ * Where the assistant is reached.
+ * - Production / phone: the Supabase project URL (calls the `assistant` function).
+ * - Local preview: set EXPO_PUBLIC_AI_PROXY (e.g. http://localhost:8787) and the
+ *   small Node proxy in ./server is used instead — still no key in the app.
+ */
+function aiBase(): string {
+  const proxy = process.env.EXPO_PUBLIC_AI_PROXY;
+  if (proxy) return proxy.replace(/\/$/, '');
+  // Browser preview convenience: if the local proxy is running, use it. This is
+  // dev-only; a production build only ever talks to the Supabase project.
+  if (isWeb && __DEV__) return 'http://localhost:8787';
+  return getConfig().url;
+}
+
 export function isConfigured(): boolean {
   const c = getConfig();
   return !!c.url && !!c.anonKey;
 }
 
+/** True when the assistant has somewhere to go (Supabase, the proxy, or local dev). */
+export function isAiConfigured(): boolean {
+  if (process.env.EXPO_PUBLIC_AI_PROXY) return true;
+  if (isWeb && __DEV__) return true;
+  return isConfigured();
+}
+
 export async function getToken(): Promise<string | null> {
-  try {
-    return await SecureStore.getItemAsync(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+  return getItem(TOKEN_KEY);
 }
 
 async function setToken(token: string | null) {
-  try {
-    if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-    else await SecureStore.deleteItemAsync(TOKEN_KEY);
-  } catch {
-    /* ignore */
-  }
+  if (token) await setItem(TOKEN_KEY, token);
+  else await removeItem(TOKEN_KEY);
 }
 
 function headers(token: string | null, prefer?: string) {
@@ -113,9 +129,10 @@ export async function pullSince(table: string, sinceIso: string) {
 export async function callAssistant(payload: unknown) {
   const c = getConfig();
   const token = await getToken();
-  const res = await fetch(`${c.url}/functions/v1/${c.aiFunctionName}`, {
+  const base = aiBase();
+  const res = await fetch(`${base}/functions/v1/${c.aiFunctionName}`, {
     method: 'POST',
-    headers: headers(token),
+    headers: { ...headers(token), apikey: c.anonKey || 'dev' },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`assistant: ${res.status}`);

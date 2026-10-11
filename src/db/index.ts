@@ -4,6 +4,8 @@
 // DB inside the app's private storage (already protected by the OS sandbox).
 import * as SQLite from 'expo-sqlite';
 
+import { isWeb } from '@/lib/runtime';
+
 import { CREATE_TABLES } from './schema';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -12,7 +14,8 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
     dbPromise = (async () => {
       const db = await SQLite.openDatabaseAsync('sithub.db');
-      await db.execAsync('PRAGMA journal_mode = WAL;');
+      // WAL is a phone setting; the browser build has no journal.
+      if (!isWeb) await db.execAsync('PRAGMA journal_mode = WAL;');
       await db.execAsync(CREATE_TABLES);
       return db;
     })();

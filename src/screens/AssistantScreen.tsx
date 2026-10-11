@@ -1,19 +1,32 @@
 // Assistant: talk or type. Simple commands work offline; bigger answers need
-// the server. It always asks before doing something (spec section 10).
+// the server. Nova always asks before doing something (spec section 10).
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 
+import { Gradient } from '@/components/Gradient';
+import { Mascot } from '@/components/Mascot';
+import { Entry, PressScale } from '@/components/Motion';
 import { Screen } from '@/components/Screen';
-import { AppText, Button, Card, Chip, Icon, IconButton, Row, Spacer } from '@/components/ui';
+import { AppText, Button, Card, Display, Icon, IconButton, Row, Spacer } from '@/components/ui';
 import { useT } from '@/i18n';
 import type { RootStackParamList } from '@/navigation/types';
-import { askAssistant, type AssistantAction, type AssistantContext } from '@/services/ai';
+import { askAssistant, type AssistantAction, type AssistantContext, type ChatTurn } from '@/services/ai';
 import { haptic } from '@/services/feedback';
 import { speak, startListening, stopListening, useLiveSpeech } from '@/services/speech';
 import { useSettings } from '@/store/settings';
 import { useWork } from '@/store/work';
+import { cardShadow, gradients } from '@/theme/tokens';
 import { useTheme } from '@/theme/ThemeProvider';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -29,6 +42,48 @@ interface Msg {
 let seq = 0;
 const nextId = () => `m${seq++}`;
 
+function Dot({ delay }: { delay: number }) {
+  const theme = useTheme();
+  const v = useSharedValue(0);
+  React.useEffect(() => {
+    v.value = withRepeat(
+      withSequence(
+        withDelay(delay, withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) })),
+        withTiming(0, { duration: 320, easing: Easing.in(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+  }, [v, delay]);
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.4 + 0.6 * v.value,
+    transform: [{ translateY: -4 * v.value }],
+  }));
+  return (
+    <Animated.View
+      style={[{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.primary }, style]}
+    />
+  );
+}
+
+function TypingDots() {
+  return (
+    <Row style={{ gap: 5 }}>
+      {[0, 1, 2].map((i) => (
+        <Dot key={i} delay={i * 130} />
+      ))}
+    </Row>
+  );
+}
+
+function Avatar() {
+  return (
+    <View style={styles.avatar}>
+      <Mascot size={30} animate={false} />
+    </View>
+  );
+}
+
 export function AssistantScreen() {
   const theme = useTheme();
   const { t, language } = useT();
@@ -36,9 +91,10 @@ export function AssistantScreen() {
   const today = useWork((s) => s.today);
   const devices = useWork((s) => s.devices);
   const aiEnabled = useSettings((s) => s.aiEnabled);
+  const scrollRef = useRef<ScrollView>(null);
 
   const [messages, setMessages] = useState<Msg[]>([
-    { id: nextId(), role: 'assistant', text: t('assistant.tapToTalk') },
+    { id: nextId(), role: 'assistant', text: t('assistant.knows') },
   ]);
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
@@ -54,6 +110,26 @@ export function AssistantScreen() {
     }),
     [today, devices],
   );
+
+  const micPulse = useSharedValue(0);
+  React.useEffect(() => {
+    if (listening) {
+      micPulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 700, easing: Easing.inOut(Easing.ease) }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      micPulse.value = withTiming(0, { duration: 200 });
+    }
+  }, [listening, micPulse]);
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: 0.35 * (1 - micPulse.value),
+    transform: [{ scale: 1 + 0.45 * micPulse.value }],
+  }));
 
   useLiveSpeech((text, final) => {
     if (text) setInput(text);
@@ -79,15 +155,22 @@ export function AssistantScreen() {
   async function send(text: string) {
     const clean = text.trim();
     if (!clean) return;
+    haptic('light');
     setInput('');
     setMessages((m) => [...m, { id: nextId(), role: 'user', text: clean }]);
+    const history: ChatTurn[] = [
+      ...messages.map((m) => ({ role: m.role, text: m.text })),
+      { role: 'user' as const, text: clean },
+    ];
     setThinking(true);
-    const reply = await askAssistant(clean, language, ctx);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    const reply = await askAssistant(clean, language, ctx, history);
     setThinking(false);
     setLastReply(reply.text);
     setMessages((m) => [...m, { id: nextId(), role: 'assistant', text: reply.text, action: reply.action, needsConfirm: reply.needsConfirm }]);
     speak(reply.text, language);
     if (reply.action.kind !== 'none' && reply.needsConfirm) setConfirm(reply.action);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }
 
   const toggleTalk = async () => {
@@ -111,54 +194,71 @@ export function AssistantScreen() {
   return (
     <Screen edges={['top']} hideMic>
       <View style={{ flex: 1 }}>
-        <Row style={{ justifyContent: 'space-between', padding: theme.spacing.lg }}>
-          <Row style={{ gap: 8 }}>
-            <Icon name="robot-happy-outline" size={26} color={theme.colors.primary} />
-            <AppText size="title" weight="700">
-              {t('assistant.title')}
-            </AppText>
-          </Row>
-          <IconButton
-            name="volume-high"
-            label={t('assistant.repeat')}
-            onPress={() => lastReply && speak(lastReply, language)}
-          />
-        </Row>
-
-        <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 40, gap: 10 }}>
-          {messages.map((m) => (
-            <View
-              key={m.id}
-              style={[
-                styles.bubble,
-                m.role === 'user'
-                  ? { backgroundColor: theme.colors.primary, alignSelf: 'flex-end', borderBottomRightRadius: 4 }
-                  : { backgroundColor: theme.colors.card, alignSelf: 'flex-start', borderBottomLeftRadius: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border },
-              ]}
-            >
-              <AppText size="body" color={m.role === 'user' ? theme.colors.onPrimary : theme.colors.text} style={{ lineHeight: 22 }}>
-                {m.text}
+        <Gradient colors={gradients.calm} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <Row style={{ gap: 12, flex: 1 }}>
+            <Mascot size={54} />
+            <View style={{ flex: 1 }}>
+              <AppText size="title" weight="700" color="#fff">
+                {t('assistant.title')}
               </AppText>
-              {m.action && m.action.kind !== 'none' ? (
-                <>
-                  <Spacer size="sm" />
-                  <Pressable onPress={() => setConfirm(m.action!)} style={[styles.actionChip, { borderColor: theme.colors.primary }]}>
-                    <Icon name="gesture-tap" size={16} color={theme.colors.primary} />
-                    <AppText size="small" weight="600" color={theme.colors.primary}>
-                      {actionLabel(m.action)}
-                    </AppText>
-                  </Pressable>
-                </>
-              ) : null}
+              <AppText size="tiny" weight="600" color="rgba(255,255,255,0.9)">
+                {t('assistant.persona')}
+              </AppText>
             </View>
+            <IconButton
+              name="volume-high"
+              label={t('assistant.repeat')}
+              color="#fff"
+              onPress={() => lastReply && speak(lastReply, language)}
+            />
+          </Row>
+        </Gradient>
+
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{ padding: theme.spacing.lg, paddingBottom: 40, gap: 10 }}
+        >
+          {messages.map((m, i) => (
+            <Entry key={m.id} delay={i === messages.length - 1 ? 40 : 0}>
+              <Row style={{ alignItems: 'flex-end', gap: 8, flexDirection: m.role === 'user' ? 'row-reverse' : 'row' }}>
+                {m.role === 'assistant' ? <Avatar /> : null}
+                <View style={{ maxWidth: '82%' }}>
+                  {m.role === 'user' ? (
+                    <Gradient colors={gradients.brand} radius={18} style={styles.userBubble}>
+                      <AppText size="body" color="#fff" style={{ lineHeight: 22 }}>
+                        {m.text}
+                      </AppText>
+                    </Gradient>
+                  ) : (
+                    <View style={[styles.bubble, { backgroundColor: theme.colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, ...cardShadow(theme.mode, 1) }]}>
+                      <AppText size="body" style={{ lineHeight: 22 }}>
+                        {m.text}
+                      </AppText>
+                      {m.action && m.action.kind !== 'none' ? (
+                        <>
+                          <Spacer size="sm" />
+                          <Pressable onPress={() => setConfirm(m.action!)} style={[styles.actionChip, { borderColor: theme.colors.primary }]}>
+                            <Icon name="gesture-tap" size={16} color={theme.colors.primary} />
+                            <AppText size="small" weight="600" color={theme.colors.primary}>
+                              {actionLabel(m.action)}
+                            </AppText>
+                          </Pressable>
+                        </>
+                      ) : null}
+                    </View>
+                  )}
+                </View>
+              </Row>
+            </Entry>
           ))}
 
           {thinking ? (
-            <Card style={{ alignSelf: 'flex-start' }}>
-              <AppText size="small" muted>
-                {t('assistant.thinking')}
-              </AppText>
-            </Card>
+            <Row style={{ alignItems: 'flex-end', gap: 8 }}>
+              <Avatar />
+              <View style={[styles.bubble, { backgroundColor: theme.colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border }]}>
+                <TypingDots />
+              </View>
+            </Row>
           ) : null}
 
           {!aiEnabled ? (
@@ -170,22 +270,29 @@ export function AssistantScreen() {
 
         {/* Offline command chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: theme.spacing.lg }}>
-          <Chip label={t('assistant.cmdLate')} onPress={() => send(t('assistant.cmdLate'))} />
-          <Chip label={t('assistant.cmdEmergency')} onPress={() => send(t('assistant.cmdEmergency'))} />
-          <Chip label={t('assistant.cmdScan')} onPress={() => send(t('assistant.cmdScan'))} />
-          <Chip label={t('assistant.cmdDevice')} onPress={() => send(t('assistant.cmdDevice'))} />
+          {[t('assistant.cmdLate'), t('assistant.cmdEmergency'), t('assistant.cmdScan'), t('assistant.cmdDevice')].map((c) => (
+            <PressScale key={c} onPress={() => send(c)} scaleTo={0.94}>
+              <View style={[styles.chip, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+                <Icon name="lightning-bolt-outline" size={15} color={theme.colors.primary} />
+                <AppText size="small" weight="600">
+                  {c}
+                </AppText>
+              </View>
+            </PressScale>
+          ))}
         </ScrollView>
 
         {/* Talk + type */}
         <View style={{ padding: theme.spacing.lg, gap: 12 }}>
-          <Pressable
-            onPress={toggleTalk}
-            accessibilityRole="button"
-            accessibilityLabel={listening ? t('assistant.stopTalking') : t('assistant.tapToTalk')}
-            style={[styles.mic, { backgroundColor: listening ? theme.colors.late : theme.colors.primary }]}
-          >
-            <Icon name={listening ? 'stop' : 'microphone'} size={30} color={theme.colors.onPrimary} />
-          </Pressable>
+          <View style={styles.micWrap}>
+            <Animated.View style={[styles.micHalo, { backgroundColor: theme.colors.late }, haloStyle]} />
+            <PressScale onPress={toggleTalk} scaleTo={0.92}>
+              <View style={[styles.mic, { backgroundColor: listening ? theme.colors.late : theme.colors.primary }]}>
+                {listening ? null : <Gradient colors={gradients.brand} style={StyleSheet.absoluteFill} radius={36} />}
+                <Icon name={listening ? 'stop' : 'microphone'} size={30} color="#fff" />
+              </View>
+            </PressScale>
+          </View>
           <AppText size="small" align="center" muted>
             {listening ? t('assistant.listening') : t('assistant.tapToTalk')}
           </AppText>
@@ -200,7 +307,11 @@ export function AssistantScreen() {
               onSubmitEditing={() => send(input)}
               returnKeyType="send"
             />
-            <IconButton name="send" label={t('assistant.send')} color={theme.colors.primary} onPress={() => send(input)} />
+            <PressScale onPress={() => send(input)} scaleTo={0.9}>
+              <Gradient colors={gradients.brand} radius={22} style={styles.sendBtn}>
+                <Icon name="send" size={20} color="#fff" />
+              </Gradient>
+            </PressScale>
           </Row>
           <AppText size="tiny" muted align="center">
             {t('assistant.offlineHint')}
@@ -212,9 +323,9 @@ export function AssistantScreen() {
       <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}>
         <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
           <View style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
-            <Row style={{ gap: 8 }}>
-              <Icon name="help-circle-outline" size={24} color={theme.colors.primary} />
-              <AppText size="section" weight="700">
+            <Row style={{ gap: 10 }}>
+              <Mascot size={44} animate={false} />
+              <AppText size="section" weight="700" style={{ flex: 1 }}>
                 {t('assistant.confirmTitle')}
               </AppText>
             </Row>
@@ -231,6 +342,7 @@ export function AssistantScreen() {
             <Spacer size="lg" />
             <Button
               title={t('assistant.confirmYes')}
+              icon="check"
               onPress={() => {
                 const a = confirm;
                 setConfirm(null);
@@ -247,10 +359,17 @@ export function AssistantScreen() {
 }
 
 const styles = StyleSheet.create({
-  bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '86%' },
+  header: { paddingHorizontal: 18, paddingVertical: 14, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
+  bubble: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, borderBottomLeftRadius: 6 },
+  userBubble: { paddingHorizontal: 14, paddingVertical: 10, borderBottomRightRadius: 6 },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
   actionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, minHeight: 32, alignSelf: 'flex-start' },
-  mic: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, minHeight: 40 },
+  micWrap: { alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
+  micHalo: { position: 'absolute', width: 72, height: 72, borderRadius: 36 },
+  mic: { width: 72, height: 72, borderRadius: 36, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', ...cardShadow('light', 2) },
+  sendBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 52, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingRight: 6 },
   backdrop: { flex: 1, justifyContent: 'center', padding: 24 },
   modalCard: { borderRadius: 20, padding: 20 },
 });
